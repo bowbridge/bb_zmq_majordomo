@@ -39,7 +39,7 @@ typedef struct _mdp_client_t mdp_client_t;
 //  Create a new mdp_client
 //  Connect to server endpoint. Succeed if connection is successful.                
 mdp_client_t *
-    mdp_client_new (const char *endpoint);
+    mdp_client_new (const char *endpoint, const char* identity, zcert_t * my_cert, const char* peer_pubkey);
 
 //  Destroy the mdp_client
 void
@@ -77,6 +77,7 @@ const char *
 //  Self test of this class
 void
     mdp_client_test (bool verbose);
+
     
 //  To enable verbose tracing (animation) of mdp_client instances, set
 //  this to true. This lets you trace from and including construction.

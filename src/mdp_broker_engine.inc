@@ -82,6 +82,10 @@ typedef struct {
     size_t timeout;             //  Default client expiry timeout
     bool verbose;               //  Verbose logging enabled?
     char *log_prefix;           //  Default log prefix
+    zactor_t * auth;            // CURVE authentication actor
+    char * publickey;           // public key of the broker
+    char * secretkey;           // private key of the broker
+    char* certstore;            // path to client certificates
 } s_server_t;
 
 
@@ -793,6 +797,40 @@ s_server_handle_pipe (zloop_t *loop, zsock_t *reader, void *argument)
             zsys_warning ("cannot save config file '%s'", filename);
         free (filename);
     }
+    else
+    if (streq (method, "SETUP-CURVE")) {
+        // set Curve public and private keys
+        
+        // free previous values
+        zstr_free(&self->publickey);
+        zstr_free(&self->secretkey);
+        zstr_free(&self->certstore);
+        if(self->auth){
+            zactor_destroy(&self->auth);
+        }
+
+        // read new values
+        char * publickey = zmsg_popstr (msg);
+        char * secretkey = zmsg_popstr (msg);
+        char * certstore = zmsg_popstr (msg);
+        
+        // create the reactor
+        self->auth = zactor_new(zauth, NULL);
+       if(self->verbose){
+            zstr_send(self->auth, "VERBOSE");
+            zsock_wait(self->auth);
+       }
+
+        
+        // assign keys to the router socket
+        zsock_set_curve_publickey(self->router, publickey);
+        zsock_set_curve_secretkey(self->router, secretkey);  
+        zsock_set_curve_server(self->router, 1);      
+
+        zstr_sendx(self->auth, "CURVE", certstore, NULL);
+        zsock_wait(self->auth);
+
+    } 
     else {
         //  Execute custom method
         zmsg_t *reply = server_method (&self->server, method, msg);

@@ -43,6 +43,9 @@ typedef struct {
     //  TODO: Add specific properties for your application
     char *service;
     unsigned int timeouts;      // Number of timeouts
+    char * identity;
+    char * peer_pubkey;
+    zcert_t * my_cert; 
 } client_t;
 
 //  Include the generated client engine
@@ -103,6 +106,11 @@ mdp_worker_test (bool verbose)
 static void
 connect_to_server (client_t *self)
 {
+    if(NULL !=self->my_cert && NULL != self->peer_pubkey){
+        zsock_set_identity(self->dealer, self->identity);
+        zcert_apply(self->my_cert, self->dealer);
+        zsock_set_curve_serverkey(self->dealer, self->peer_pubkey);
+    }
     if (zsock_connect(self->dealer, "%s", self->args->endpoint)) {
         engine_set_exception(self, connect_error_event);
         zsys_warning("could not connect to %s", self->args->endpoint);
@@ -180,6 +188,11 @@ received_heartbeat (client_t *self)
 static void
 destroy_worker (client_t *self)
 {
+    zstr_free(&self->peer_pubkey);
+    zstr_free(&self->identity);
+    if(self->my_cert){
+        zcert_destroy(&self->my_cert);
+    }
 }
 
 

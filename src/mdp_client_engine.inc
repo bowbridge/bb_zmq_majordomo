@@ -328,8 +328,9 @@ s_client_execute (s_client_t *self, event_t event)
                 if (self->event == constructor_event) {
                     if (!self->exception) {
                         //  connect to server
-                        if (mdp_client_verbose)
+                        if (mdp_client_verbose){
                             zsys_debug ("mdp_client:            $ connect to server");
+                        }
                         connect_to_server (&self->client);
                     }
                     if (!self->exception) {
@@ -516,7 +517,12 @@ s_client_handle_cmdpipe (zloop_t *loop, zsock_t *reader, void *argument)
     else
     if (streq (method, "CONSTRUCTOR")) {
         zstr_free (&self->args.endpoint);
-        zsock_recv (self->cmdpipe, "s", &self->args.endpoint);
+        if(self->client.my_cert){
+            zcert_destroy(&self->client.my_cert);  
+        }
+        zstr_free(&self->client.identity);      
+        zstr_free(&self->client.peer_pubkey);
+        zsock_recv (self->cmdpipe, "ssps", &self->args.endpoint, &self->client.identity, &self->client.my_cert, &self->client.peer_pubkey);
         s_client_execute (self, constructor_event);
     }
     else
@@ -534,6 +540,7 @@ s_client_handle_cmdpipe (zloop_t *loop, zsock_t *reader, void *argument)
     if (streq (method, "SET VERBOSE")) {
         s_client_execute (self, set_verbose_event);
     }
+    
     //  Cleanup pipe if any argument frames are still waiting to be eaten
     if (zsock_rcvmore (self->cmdpipe)) {
         zsys_error ("mdp_client: trailing API command frames (%s)", method);
@@ -646,10 +653,10 @@ struct _mdp_client_t {
 //  Connect to server endpoint. Succeed if connection is successful.                
 
 static uint8_t 
-mdp_client_constructor (mdp_client_t *self, const char *endpoint);
+mdp_client_constructor (mdp_client_t *self, const char *endpoint, const char* identity, zcert_t * my_cert,  const char * peer_pubkey);
 
 mdp_client_t *
-mdp_client_new (const char *endpoint)
+mdp_client_new (const char *endpoint, const char* identity,  zcert_t* my_cert, const char* peer_pubkey)
 {
     mdp_client_t *self = (mdp_client_t *) zmalloc (sizeof (mdp_client_t));
     if (self) {
@@ -657,7 +664,7 @@ mdp_client_new (const char *endpoint)
         self->msgpipe = zsys_create_pipe (&backend);
         self->actor = zactor_new (mdp_client, backend);
         if (self->actor)
-            self->status = mdp_client_constructor (self, endpoint);
+            self->status = mdp_client_constructor (self, endpoint, identity!=NULL?identity:"", my_cert, peer_pubkey!=NULL?peer_pubkey:"" );
         if (self->status == -1)
             zactor_destroy (&self->actor);
         if (!self->actor)
@@ -774,10 +781,10 @@ s_accept_reply (mdp_client_t *self, ...)
 //  Returns >= 0 if successful, -1 if interrupted.
 
 static uint8_t 
-mdp_client_constructor (mdp_client_t *self, const char *endpoint)
+mdp_client_constructor (mdp_client_t *self, const char *endpoint, const char* identity, zcert_t * my_cert,  const char * peer_pubkey)
 {
     assert (self);
-    zsock_send (self->actor, "ss", "CONSTRUCTOR", endpoint);
+    zsock_send (self->actor, "sssps", "CONSTRUCTOR", endpoint, identity!=NULL?identity:"", my_cert, peer_pubkey!=NULL?peer_pubkey:"");
     if (s_accept_reply (self, "SUCCESS", "FAILURE", NULL))
         return -1;              //  Interrupted or timed-out
     return self->status;

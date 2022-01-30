@@ -40,7 +40,7 @@ typedef struct _mdp_worker_t mdp_worker_t;
 //  Connect to server endpoint and register service. Succeed if connection is       
 //  successful.                                                                     
 mdp_worker_t *
-    mdp_worker_new (const char *endpoint, const char *service);
+    mdp_worker_new (const char *endpoint, const char *service, const char* identity, zcert_t* mycert, const char* peer_pubkey);
 
 //  Destroy the mdp_worker
 void
@@ -74,6 +74,8 @@ int
 //  Set mdp_worker_verbose.                                                         
 int 
     mdp_worker_set_verbose (mdp_worker_t *self);
+
+int mdp_worker_set_credentials(mdp_worker_t *self, zcert_t* cert, const char* public_key);
 
 //  Return last received status
 uint8_t 

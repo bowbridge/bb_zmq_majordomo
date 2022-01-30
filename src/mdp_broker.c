@@ -431,8 +431,8 @@ handle_worker_final (client_t *self)
 
     zstr_free(&identity);
     mdp_msg_destroy(&client_msg);
+    s_service_dispatch(service);
 }
-
 
 //  ---------------------------------------------------------------------------
 //  destroy_broker

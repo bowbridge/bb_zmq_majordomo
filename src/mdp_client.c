@@ -40,6 +40,9 @@ typedef struct {
     client_args_t *args;        //  Arguments from methods
     
     //  TODO: Add specific properties for your application
+    char * identity;
+    char* peer_pubkey;
+    zcert_t * my_cert;    
 } client_t;
 
 //  Include the generated client engine
@@ -54,7 +57,7 @@ client_initialize (client_t *self)
     return 0;
 }
 
-//  Free properties and structures for a client instance
+//  Free properties and structures for a client instanmdp_client_new
 
 static void
 client_terminate (client_t *self)
@@ -90,6 +93,12 @@ mdp_client_test (bool verbose)
 static void
 connect_to_server (client_t *self)
 {
+    if(NULL !=self->my_cert && NULL != self->peer_pubkey){
+        zsock_set_identity(self->dealer, self->identity);
+        zcert_apply(self->my_cert, self->dealer);
+        zsock_set_curve_serverkey(self->dealer, self->peer_pubkey);
+        zsys_debug("set CURVE credentials for connection to %s", self->args->endpoint);
+    }
     if (zsock_connect(self->dealer, "%s", self->args->endpoint)) {
         engine_set_exception(self, connect_error_event);
         zsys_warning("could not connect to %s", self->args->endpoint);
