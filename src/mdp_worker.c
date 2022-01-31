@@ -106,8 +106,10 @@ mdp_worker_test (bool verbose)
 static void
 connect_to_server (client_t *self)
 {
-    if(NULL !=self->my_cert && NULL != self->peer_pubkey){
+    if(NULL != self->identity && 0 != strlen(self->identity)){
         zsock_set_identity(self->dealer, self->identity);
+    }
+    if(NULL !=self->my_cert && NULL != self->peer_pubkey){
         zcert_apply(self->my_cert, self->dealer);
         zsock_set_curve_serverkey(self->dealer, self->peer_pubkey);
     }

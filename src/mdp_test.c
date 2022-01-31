@@ -27,7 +27,7 @@ main()
     zmq_z85_decode(sec, secret_key);
     zmq_z85_decode(pub, public_key);
     zcert_t * cert = zcert_new_from(pub, sec);
-    int plain=1;
+    int plain=0;
 
 
 
@@ -40,7 +40,6 @@ main()
         zstr_sendx(broker, "SETUP-CURVE", public_key, secret_key, CURVE_ALLOW_ANY, NULL);
  
     zstr_sendx(broker, "BIND", endpoint_bind, NULL);
-    printf("Broker bound to %s\n", endpoint_bind);
 
 
     // set up the client
