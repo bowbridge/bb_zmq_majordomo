@@ -86,78 +86,92 @@ typedef struct _mdp_worker_msg_t mdp_worker_msg_t;
 //  @interface
 //  Create a new empty mdp_worker_msg
 mdp_worker_msg_t *
-    mdp_worker_msg_new (void);
+mdp_worker_msg_new(void);
 
 //  Destroy a mdp_worker_msg instance
 void
-    mdp_worker_msg_destroy (mdp_worker_msg_t **self_p);
+mdp_worker_msg_destroy(mdp_worker_msg_t **self_p);
 
 //  Receive a mdp_worker_msg from the socket. Returns 0 if OK, -1 if
 //  there was an error. Blocks if there is no message waiting.
 int
-    mdp_worker_msg_recv (mdp_worker_msg_t *self, zsock_t *input);
+mdp_worker_msg_recv(mdp_worker_msg_t *self, zsock_t *input);
 
 //  Send the mdp_worker_msg to the output socket, does not destroy it
 int
-    mdp_worker_msg_send (mdp_worker_msg_t *self, zsock_t *output);
-    
+mdp_worker_msg_send(mdp_worker_msg_t *self, zsock_t *output);
+
 //  Print contents of message to stdout
 void
-    mdp_worker_msg_print (mdp_worker_msg_t *self);
+mdp_worker_msg_print(mdp_worker_msg_t *self);
 
 //  Get/set the message routing id
 zframe_t *
-    mdp_worker_msg_routing_id (mdp_worker_msg_t *self);
+mdp_worker_msg_routing_id(mdp_worker_msg_t *self);
+
 void
-    mdp_worker_msg_set_routing_id (mdp_worker_msg_t *self, zframe_t *routing_id);
+mdp_worker_msg_set_routing_id(mdp_worker_msg_t *self, zframe_t *routing_id);
 
 //  Get the mdp_worker_msg id and printable command
 int
-    mdp_worker_msg_id (mdp_worker_msg_t *self);
+mdp_worker_msg_id(mdp_worker_msg_t *self);
+
 void
-    mdp_worker_msg_set_id (mdp_worker_msg_t *self, int id);
+mdp_worker_msg_set_id(mdp_worker_msg_t *self, int id);
+
 const char *
-    mdp_worker_msg_command (mdp_worker_msg_t *self);
+mdp_worker_msg_command(mdp_worker_msg_t *self);
 
 //  Get/set the service field
 const char *
-    mdp_worker_msg_service (mdp_worker_msg_t *self);
+mdp_worker_msg_service(mdp_worker_msg_t *self);
+
 void
-    mdp_worker_msg_set_service (mdp_worker_msg_t *self, const char *value);
+mdp_worker_msg_set_service(mdp_worker_msg_t *self, const char *value);
 
 //  Get a copy of the address field
 zframe_t *
-    mdp_worker_msg_address (mdp_worker_msg_t *self);
+mdp_worker_msg_address(mdp_worker_msg_t *self);
+
 //  Get the address field and transfer ownership to caller
 zframe_t *
-    mdp_worker_msg_get_address (mdp_worker_msg_t *self);
+mdp_worker_msg_get_address(mdp_worker_msg_t *self);
+
 //  Set the address field, transferring ownership from caller
 void
-    mdp_worker_msg_set_address (mdp_worker_msg_t *self, zframe_t **frame_p);
+mdp_worker_msg_set_address(mdp_worker_msg_t *self, zframe_t **frame_p);
 
 //  Get a copy of the empty field
 zframe_t *
-    mdp_worker_msg_empty (mdp_worker_msg_t *self);
+mdp_worker_msg_empty(mdp_worker_msg_t *self);
+
 //  Get the empty field and transfer ownership to caller
 zframe_t *
-    mdp_worker_msg_get_empty (mdp_worker_msg_t *self);
+mdp_worker_msg_get_empty(mdp_worker_msg_t *self);
+
 //  Set the empty field, transferring ownership from caller
 void
-    mdp_worker_msg_set_empty (mdp_worker_msg_t *self, zframe_t **frame_p);
+mdp_worker_msg_set_empty(mdp_worker_msg_t *self, zframe_t **frame_p);
 
 //  Get a copy of the body field
 zmsg_t *
-    mdp_worker_msg_body (mdp_worker_msg_t *self);
+mdp_worker_msg_body(mdp_worker_msg_t *self);
+
 //  Get the body field and transfer ownership to caller
 zmsg_t *
-    mdp_worker_msg_get_body (mdp_worker_msg_t *self);
+mdp_worker_msg_get_body(mdp_worker_msg_t *self);
+
+//  Set the body field of rhw READY message (never encrypted) transferring ownership from caller
+void
+mdp_worker_msg_set_ready_body(mdp_worker_msg_t *self, zmsg_t **msg_p);
+
 //  Set the body field, transferring ownership from caller
 void
-    mdp_worker_msg_set_body (mdp_worker_msg_t *self, zmsg_t **msg_p);
+mdp_worker_msg_set_body(mdp_worker_msg_t *self, zmsg_t **msg_p);
 
 //  Self test of this class
 int
-    mdp_worker_msg_test (bool verbose);
+mdp_worker_msg_test(bool verbose);
 //  @end
 
 //  For backwards compatibility with old codecs

@@ -24,6 +24,7 @@
 #define __MDP_BROKER_H_INCLUDED__
 
 #include <czmq.h>
+#include "sodium.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -81,11 +82,11 @@ extern "C" {
 //  This is the mdp_broker constructor as a zactor_fn:
 //
 void
-    mdp_broker (zsock_t *pipe, void *args);
+mdp_broker(zsock_t *pipe, void *args);
 
 //  Self test of this class
 void
-    mdp_broker_test (bool verbose);
+mdp_broker_test(bool verbose);
 //  @end
 
 #ifdef __cplusplus
