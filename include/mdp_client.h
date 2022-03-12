@@ -24,6 +24,7 @@
 #define __MDP_CLIENT_H_INCLUDED__
 
 #include <czmq.h>
+#include "sodium.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,16 +40,16 @@ typedef struct _mdp_client_t mdp_client_t;
 //  Create a new mdp_client
 //  Connect to server endpoint. Succeed if connection is successful.                
 mdp_client_t *
-    mdp_client_new (const char *endpoint);
+mdp_client_new(const char *endpoint, unsigned char *broker_pk);
 
 //  Destroy the mdp_client
 void
-    mdp_client_destroy (mdp_client_t **self_p);
+mdp_client_destroy(mdp_client_t **self_p);
 
 //  Return actor, when caller wants to work with multiple actors and/or
 //  input sockets asynchronously.
 zactor_t *
-    mdp_client_actor (mdp_client_t *self);
+mdp_client_actor(mdp_client_t *self);
 
 //  Return message pipe for asynchronous message I/O. In the high-volume case,
 //  we send methods and get replies to the actor, in a synchronous manner, and
@@ -56,32 +57,32 @@ zactor_t *
 //  the low-volume case we can do everything over the actor pipe, if traffic
 //  is never ambiguous.
 zsock_t *
-    mdp_client_msgpipe (mdp_client_t *self);
+mdp_client_msgpipe(mdp_client_t *self);
 
 //  Send request to broker.                                                         
-int 
-    mdp_client_request (mdp_client_t *self, const char *service, zmsg_t **body_p);
+int
+mdp_client_request(mdp_client_t *self, const char *service, zmsg_t **body_p);
 
 //  Set mdp_client_verbose.                                                         
-int 
-    mdp_client_set_verbose (mdp_client_t *self);
+int
+mdp_client_set_verbose(mdp_client_t *self);
 
 //  Return last received status
-uint8_t 
-    mdp_client_status (mdp_client_t *self);
+uint8_t
+mdp_client_status(mdp_client_t *self);
 
 //  Return last received reason
 const char *
-    mdp_client_reason (mdp_client_t *self);
+mdp_client_reason(mdp_client_t *self);
 
 //  Self test of this class
 void
-    mdp_client_test (bool verbose);
-    
+mdp_client_test(bool verbose);
+
 //  To enable verbose tracing (animation) of mdp_client instances, set
 //  this to true. This lets you trace from and including construction.
 extern volatile int
-    mdp_client_verbose;
+        mdp_client_verbose;
 //  @end
 
 #ifdef __cplusplus

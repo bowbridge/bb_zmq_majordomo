@@ -38,8 +38,12 @@ typedef struct {
     zsock_t *dealer;            //  Socket to talk to server
     mdp_client_msg_t *message;  //  Message to/from server
     client_args_t *args;        //  Arguments from methods
-    
+
     //  TODO: Add specific properties for your application
+    unsigned char *broker_pk;
+    unsigned char *client_pk;
+    unsigned char *session_key_rx;
+    unsigned char *session_key_tx;
 } client_t;
 
 //  Include the generated client engine
@@ -49,16 +53,14 @@ typedef struct {
 //  Return 0 if OK, -1 if failed
 
 static int
-client_initialize (client_t *self)
-{
+client_initialize(client_t *self) {
     return 0;
 }
 
 //  Free properties and structures for a client instance
 
 static void
-client_terminate (client_t *self)
-{
+client_terminate(client_t *self) {
     //  Destroy properties here
 }
 
@@ -67,19 +69,18 @@ client_terminate (client_t *self)
 //  Selftest
 
 void
-mdp_client_test (bool verbose)
-{
-    printf (" * mdp_client: ");
+mdp_client_test(bool verbose) {
+    printf(" * mdp_client: ");
     if (verbose)
-        printf ("\n");
-    
+        printf("\n");
+
     //  @selftest
-    zactor_t *client = zactor_new (mdp_client, NULL);
+    zactor_t *client = zactor_new(mdp_client, NULL);
     if (verbose)
-        zstr_send (client, "VERBOSE");
-    zactor_destroy (&client);
+        zstr_send(client, "VERBOSE");
+    zactor_destroy(&client);
     //  @end
-    printf ("OK\n");
+    printf("OK\n");
 }
 
 
@@ -88,17 +89,14 @@ mdp_client_test (bool verbose)
 //
 
 static void
-connect_to_server (client_t *self)
-{
+connect_to_server(client_t *self) {
     if (zsock_connect(self->dealer, "%s", self->args->endpoint)) {
         engine_set_exception(self, connect_error_event);
         zsys_warning("could not connect to %s", self->args->endpoint);
-        zsock_send (self->cmdpipe, "si", "FAILURE", 0);
-    }
-    else
-    {
+        zsock_send(self->cmdpipe, "si", "FAILURE", 0);
+    } else {
         zsys_debug("connected to %s", self->args->endpoint);
-        zsock_send (self->cmdpipe, "si", "SUCCESS", 0);
+        zsock_send(self->cmdpipe, "si", "SUCCESS", 0);
     }
 }
 
@@ -108,8 +106,7 @@ connect_to_server (client_t *self)
 //
 
 static void
-signal_connection_success (client_t *self)
-{
+signal_connection_success(client_t *self) {
 
 }
 
@@ -119,17 +116,95 @@ signal_connection_success (client_t *self)
 //
 
 static void
-send_request_to_broker (client_t *self)
-{
+send_request_to_broker(client_t *self) {
     mdp_client_msg_t *msg;
 
     msg = mdp_client_msg_new();
     assert(msg);
     mdp_client_msg_set_id(msg, MDP_CLIENT_MSG_CLIENT_REQUEST);
     mdp_client_msg_set_service(msg, self->args->service);
+    // stack 3 frames to the original body: #1 PLAIN/SECURE Identifier, #2 client ephemeral PK, nonce, encrypted body
+    if (NULL != self->broker_pk) {
+        if (NULL == self->client_pk) {
+            // generate
+            unsigned char client_sk[crypto_kx_SECRETKEYBYTES];
+            self->client_pk = (unsigned char *) zmalloc(crypto_kx_PUBLICKEYBYTES);
+
+            // generate an ephemeral keypair for the key exchange
+            if (crypto_kx_keypair(self->client_pk, (unsigned char *) &client_sk)) {
+                zsys_error("Failed to generate Public/private key pairs");
+                free(self->client_pk);
+                self->client_pk = NULL;
+            } else {
+                // base64 decode the broker PK
+                unsigned char broker_pk[crypto_kx_PUBLICKEYBYTES];
+                size_t binlen = 0;
+                sodium_base642bin(broker_pk, crypto_kx_PUBLICKEYBYTES, (const char *) self->broker_pk,
+                                  strlen((char *) self->broker_pk),
+                                  NULL, &binlen, NULL, sodium_base64_VARIANT_URLSAFE_NO_PADDING);
+
+                // generate session keys
+                self->session_key_tx = (unsigned char *) zmalloc(crypto_kx_SESSIONKEYBYTES);
+                self->session_key_rx = (unsigned char *) zmalloc(crypto_kx_SESSIONKEYBYTES);
+                if (crypto_kx_client_session_keys(self->session_key_rx, self->session_key_tx, self->client_pk,
+                                                  client_sk, broker_pk)) {
+                    zsys_error("Failed to generate session keys");
+                    if (self->session_key_tx) {
+                        free(self->session_key_tx);
+                        self->session_key_tx = NULL;
+                    }
+                    if (self->session_key_rx) {
+                        free(self->session_key_rx);
+                        self->session_key_rx = NULL;
+                    }
+                    free(self->client_pk);
+                    self->client_pk = NULL;
+                }
+            }
+
+            // encrypt the original body - frame by frame
+            unsigned char nonce[crypto_secretbox_NONCEBYTES];
+            randombytes_buf(nonce, crypto_secretbox_NONCEBYTES);
+            int num_frames = (int) zmsg_size(self->args->body);
+            int i = 0;
+            for (i = 0; i < num_frames; i++) {
+                zframe_t *frame = zmsg_pop(self->args->body);
+                if (NULL != frame) {
+                    size_t data_plain_len = zframe_size(frame);
+                    unsigned char *data_plain = (unsigned char *) zframe_data(frame);
+                    size_t data_encrypted_len = crypto_secretbox_MACBYTES + data_plain_len;
+                    unsigned char *data_encrypted = (unsigned char *) zmalloc(data_encrypted_len);
+                    if (NULL == data_encrypted) {
+                        zsys_error("Memory allocation error");
+                        return;
+                    }
+                    int res = crypto_secretbox_easy(data_encrypted, data_plain,
+                                                    data_plain_len,
+                                                    nonce, self->session_key_tx);
+                    zsys_debug("Encrypting frame %d - %s", i + 1, res == 0 ? "SUCESS" : "ERROR");
+                    if (res != 0) {
+                        return;
+                    }
+                    zmsg_addmem(self->args->body, data_encrypted, data_encrypted_len);
+                    zframe_destroy(&frame);
+                    (uint64_t) nonce[crypto_secretbox_NONCEBYTES - 9]++;
+                }
+            }
+
+            // prepend identifier pubkey and nonce frames
+            zmsg_pushmem(self->args->body, nonce, crypto_secretbox_NONCEBYTES);
+            zmsg_pushmem(self->args->body, self->client_pk, crypto_kx_PUBLICKEYBYTES);
+            zmsg_pushstr(self->args->body, "BB_MDP_SECURE");
+        }
+    } else {
+        // in PLAIN mode, just add the BB_MDP_PLAINTEXT identifier frame
+        zmsg_pushstr(self->args->body, "BB_MDP_PLAIN");
+    }
+
     mdp_client_msg_set_body(msg, &self->args->body);
     mdp_client_msg_send(msg, self->dealer);
     mdp_client_msg_destroy(&msg);
+
 }
 
 
@@ -138,8 +213,7 @@ send_request_to_broker (client_t *self)
 //
 
 static void
-disconnect_from_broker (client_t *self)
-{
+disconnect_from_broker(client_t *self) {
 
 }
 
@@ -149,8 +223,7 @@ disconnect_from_broker (client_t *self)
 //
 
 static void
-send_partial_response (client_t *self)
-{
+send_partial_response(client_t *self) {
     zmsg_t *body = mdp_client_msg_get_body(self->message);
     zsock_send(self->msgpipe, "sm", "PARTIAL", body);
 }
@@ -161,8 +234,7 @@ send_partial_response (client_t *self)
 //
 
 static void
-send_final_response (client_t *self)
-{
+send_final_response(client_t *self) {
     zmsg_t *body = mdp_client_msg_get_body(self->message);
     zsock_send(self->msgpipe, "sm", "FINAL", body);
 }
@@ -173,8 +245,7 @@ send_final_response (client_t *self)
 //
 
 static void
-log_protocol_error (client_t *self)
-{
+log_protocol_error(client_t *self) {
     zsys_error("** protocol error **");
     mdp_client_msg_print(self->message);
 }
@@ -185,8 +256,7 @@ log_protocol_error (client_t *self)
 //
 
 static void
-signal_connect_error (client_t *self)
-{
+signal_connect_error(client_t *self) {
     zsock_send(self->cmdpipe, "si", "CONNECT ERROR", 0);
 }
 
@@ -196,7 +266,6 @@ signal_connect_error (client_t *self)
 //
 
 static void
-handle_set_verbose (client_t *self)
-{
+handle_set_verbose(client_t *self) {
     mdp_client_verbose = true;
 }

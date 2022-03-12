@@ -62,6 +62,9 @@ struct _client_t {
     //  TODO: Add specific properties for your application
     unsigned int timeouts;      // Number of timeouts
     char *service_name;         // Service name called by client request
+    unsigned char *client_pk;
+    unsigned char *session_key_rx;
+    unsigned char *session_key_tx;
 };
 
 // The service class defines a single service instance.
@@ -358,6 +361,64 @@ handle_request(client_t *self) {
     mdp_msg_set_id(msg, mdp_msg_id(self->message));
     mdp_msg_set_service(msg, service_name);
     zmsg_t *body = mdp_msg_get_body(self->message);
+
+    // is it encrypted?
+    zframe_t *f = zmsg_pop(body);
+    if (NULL != f) {
+        if (zframe_streq(f, "BB_MDP_SECURE")) {
+            zsys_debug("Encrypted message");
+            // get the client pubkey frame
+            zframe_destroy(&f);
+            f = zmsg_pop(body);
+            if (f) {
+                self->client_pk = (unsigned char *) zmalloc(crypto_kx_PUBLICKEYBYTES);
+                memcpy(self->client_pk, zframe_data(f), crypto_kx_PUBLICKEYBYTES);
+                self->session_key_tx = (unsigned char *) zmalloc(crypto_kx_SESSIONKEYBYTES);
+                self->session_key_rx = (unsigned char *) zmalloc(crypto_kx_SESSIONKEYBYTES);
+                if (crypto_kx_server_session_keys(self->session_key_rx, self->session_key_tx, self->server->my_pk,
+                                                  self->server->my_sk, self->client_pk)) {
+                    zsys_error("Failed to generate session keys");
+                    return;
+                }
+                zsys_debug("Session keys with Client established");
+
+                // get the nonce
+                zframe_destroy(&f);
+                f = zmsg_pop(body);
+                unsigned char nonce[crypto_secretbox_NONCEBYTES];
+                memcpy(nonce, zframe_data(f), crypto_secretbox_NONCEBYTES);
+
+                // decrypt the body, frame by frame
+                int num_frames = (int) zmsg_size(body);
+                int i = 0;
+                for (i = 0; i < num_frames; i++) {
+                    zframe_t *frame = zmsg_pop(body);
+                    if (frame) {
+                        unsigned char *ciphertext = zframe_data(frame);
+                        if (ciphertext) {
+                            size_t ciphertextlen = zframe_size(frame);
+                            size_t plaintextlen = ciphertextlen - crypto_secretbox_MACBYTES;
+                            unsigned char *plaintext = (unsigned char *) zmalloc(plaintextlen);
+                            if (plaintext) {
+                                int res = crypto_secretbox_open_easy(plaintext, ciphertext,
+                                                                     (unsigned long long int) ciphertextlen, nonce,
+                                                                     self->session_key_rx);
+                                if (0 != res) {
+                                    zsys_error("Failed to decrypt frame #%d", i + 1);
+                                    return;
+                                }
+                                zmsg_addmem(body, plaintext, plaintextlen);
+                                zframe_destroy(&frame);
+                                zsys_debug("decrypted frame #%d", i + 1);
+                                (uint64_t) nonce[crypto_secretbox_NONCEBYTES - 9]++;
+                            }
+                        }
+                    }
+                }
+            } else return;
+        }
+        zframe_destroy(&f);
+    }
     mdp_msg_set_body(msg, &body);
 
     service_t *service = s_service_require(self->server, service_name);
