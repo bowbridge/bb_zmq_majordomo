@@ -42,6 +42,7 @@ struct _server_t {
     //  TODO: Add any properties you need here
     zhash_t *services;      // Hash of known services
     zhash_t *workers;       // Hash of known workers
+    zhash_t *clients;      // list of known clients
     zlist_t *waiting;       // List of waiting workers
     zsock_t *router;        // The same socket as router in s_server_t
     zlist_t *known_psks;
@@ -259,7 +260,7 @@ client_initialize(client_t *self) {
     // Client init service
     const char *msg_service = mdp_msg_service(self->message);
     if (msg_service != NULL) {
-        self->service_name = (char *) zmalloc ((strlen(msg_service) + 1) * sizeof(char));
+        self->service_name = (char *) zmalloc((strlen(msg_service) + 1) * sizeof(char));
         assert(self->service_name);
         snprintf(self->service_name, strlen(msg_service) + 1, "%s", msg_service);
     }
@@ -289,8 +290,8 @@ mdp_broker_test(bool verbose) {
         zstr_send(server, "VERBOSE");
     zstr_sendx(server, "BIND", "ipc://@/mdp_broker", NULL);
 
-    zsock_t *client = zsock_new (ZMQ_DEALER);
-    assert (client);
+    zsock_t *client = zsock_new(ZMQ_DEALER);
+    assert(client);
     zsock_set_rcvtimeo(client, 2000);
     zsock_connect(client, "ipc://@/mdp_broker");
 
@@ -298,7 +299,7 @@ mdp_broker_test(bool verbose) {
     mdp_msg_t *request = mdp_msg_new();
     mdp_msg_destroy(&request);
 
-    zsock_destroy (&client);
+    zsock_destroy(&client);
     zactor_destroy(&server);
     //  @end
     printf("OK\n");
@@ -338,6 +339,79 @@ handle_mmi(client_t *self, const char *service_name) {
     mdp_msg_set_body(client_msg, &rep_body);
     mdp_msg_send(client_msg, self->server->router);
     mdp_msg_destroy(&client_msg);
+}
+
+static int s_encrypt_body(zmsg_t *body, unsigned char *key) {
+    // encrypt the original body - frame by frame
+    unsigned char nonce[crypto_secretbox_NONCEBYTES];
+    int num_frames = (int) zmsg_size(body);
+    int i = 0;
+    for (i = 0; i < num_frames; i++) {
+        zframe_t *frame = zmsg_pop(body);
+        if (NULL != frame) {
+            randombytes_buf(nonce, crypto_secretbox_NONCEBYTES);
+            size_t data_plain_len = zframe_size(frame);
+            unsigned char *data_plain = (unsigned char *) zframe_data(frame);
+            size_t data_encrypted_len = crypto_secretbox_MACBYTES + data_plain_len;
+            unsigned char *data_encrypted = (unsigned char *) zmalloc(data_encrypted_len);
+            if (NULL == data_encrypted) {
+                zsys_error("Memory allocation error");
+                return -1;
+            }
+            int res = crypto_secretbox_easy(data_encrypted, data_plain,
+                                            data_plain_len,
+                                            nonce, key);
+            zsys_debug("Encrypting frame %d - %s", i + 1, res == 0 ? "SUCESS" : "ERROR");
+            if (res != 0) {
+                return -1;
+            }
+            zmsg_addmem(body, nonce, crypto_secretbox_NONCEBYTES);
+            zmsg_addmem(body, data_encrypted, data_encrypted_len);
+            zframe_destroy(&frame);
+        }
+    }
+
+    // prepend identifier pubkey and frames
+    zmsg_pushstr(body, "BB_MDP_SECURE");
+    return 0;
+}
+
+static int s_decrypt_body(zmsg_t *body, unsigned char *key) {
+    // decrypt the body, frame by frame
+    unsigned char nonce[crypto_secretbox_NONCEBYTES];
+
+    int num_frames = (int) zmsg_size(body);
+    int i = 0;
+    for (i = 0; i < num_frames; i += 2) {
+        zframe_t *frame = zmsg_pop(body);
+        if (frame) {
+            // nonce frame
+            memcpy(nonce, zframe_data(frame), crypto_secretbox_NONCEBYTES);
+            zframe_destroy(&frame);
+            frame = zmsg_pop(body);
+            if (frame) {
+                unsigned char *ciphertext = zframe_data(frame);
+                if (ciphertext) {
+                    size_t ciphertextlen = zframe_size(frame);
+                    size_t plaintextlen = ciphertextlen - crypto_secretbox_MACBYTES;
+                    unsigned char *plaintext = (unsigned char *) zmalloc(plaintextlen);
+                    if (plaintext) {
+                        int res = crypto_secretbox_open_easy(plaintext, ciphertext,
+                                                             (unsigned long long int) ciphertextlen, nonce,
+                                                             key);
+                        if (0 != res) {
+                            zsys_error("Failed to decrypt data frame #%d", (i + 1) / 2);
+                            return -1;
+                        }
+                        zmsg_addmem(body, plaintext, plaintextlen);
+                        zframe_destroy(&frame);
+                        zsys_debug("decrypted data frame #%d", (i + 1) / 2);
+                    }
+                }
+            }
+        }
+    }
+    return 0;
 }
 
 //  ---------------------------------------------------------------------------
@@ -381,40 +455,11 @@ handle_request(client_t *self) {
                     return;
                 }
                 zsys_debug("Session keys with Client established");
-
-                // get the nonce
                 zframe_destroy(&f);
-                f = zmsg_pop(body);
-                unsigned char nonce[crypto_secretbox_NONCEBYTES];
-                memcpy(nonce, zframe_data(f), crypto_secretbox_NONCEBYTES);
 
                 // decrypt the body, frame by frame
-                int num_frames = (int) zmsg_size(body);
-                int i = 0;
-                for (i = 0; i < num_frames; i++) {
-                    zframe_t *frame = zmsg_pop(body);
-                    if (frame) {
-                        unsigned char *ciphertext = zframe_data(frame);
-                        if (ciphertext) {
-                            size_t ciphertextlen = zframe_size(frame);
-                            size_t plaintextlen = ciphertextlen - crypto_secretbox_MACBYTES;
-                            unsigned char *plaintext = (unsigned char *) zmalloc(plaintextlen);
-                            if (plaintext) {
-                                int res = crypto_secretbox_open_easy(plaintext, ciphertext,
-                                                                     (unsigned long long int) ciphertextlen, nonce,
-                                                                     self->session_key_rx);
-                                if (0 != res) {
-                                    zsys_error("Failed to decrypt frame #%d", i + 1);
-                                    return;
-                                }
-                                zmsg_addmem(body, plaintext, plaintextlen);
-                                zframe_destroy(&frame);
-                                zsys_debug("decrypted frame #%d", i + 1);
-                                (uint64_t) nonce[crypto_secretbox_NONCEBYTES - 9]++;
-                            }
-                        }
-                    }
-                }
+                s_decrypt_body(body, self->session_key_rx);
+
             } else return;
         }
         zframe_destroy(&f);
@@ -443,6 +488,10 @@ handle_worker_partial(client_t *self) {
     mdp_msg_set_id(client_msg, MDP_MSG_CLIENT_PARTIAL);
     mdp_msg_set_service(client_msg, mdp_msg_service(msg));
     zmsg_t *body = mdp_msg_get_body(msg);
+    char *hashkey = zframe_strhex(address);
+    s_client_t *client = (s_client_t *) zhash_lookup(self->server->clients, hashkey);
+
+    s_encrypt_body(body, client->client.session_key_tx);
     mdp_msg_set_body(client_msg, &body);
     mdp_msg_send(client_msg, self->server->router);
     mdp_msg_destroy(&client_msg);
@@ -465,6 +514,12 @@ handle_worker_final(client_t *self) {
     const char *service_name = self->service_name;
     mdp_msg_set_service(client_msg, service_name);
     zmsg_t *body = mdp_msg_get_body(msg);
+
+    char *hashkey = zframe_strhex(address);
+    s_client_t *client = (s_client_t *) zhash_lookup(self->server->clients, hashkey);
+
+    s_encrypt_body(body, client->client.session_key_tx);
+
     mdp_msg_set_body(client_msg, &body);
     mdp_msg_send(client_msg, self->server->router);
 

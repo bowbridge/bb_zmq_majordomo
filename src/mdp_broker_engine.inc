@@ -622,6 +622,7 @@ s_server_new(zsock_t *pipe) {
     zsock_set_unbounded(self->router);
     self->message = mdp_msg_new();
     self->clients = zhash_new();
+    self->server.clients = self->clients; // make clients available to application
     self->config = zconfig_new("root", NULL);
     self->loop = zloop_new();
     srandom((unsigned int) zclock_time());

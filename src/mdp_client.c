@@ -164,12 +164,12 @@ send_request_to_broker(client_t *self) {
 
             // encrypt the original body - frame by frame
             unsigned char nonce[crypto_secretbox_NONCEBYTES];
-            randombytes_buf(nonce, crypto_secretbox_NONCEBYTES);
             int num_frames = (int) zmsg_size(self->args->body);
             int i = 0;
             for (i = 0; i < num_frames; i++) {
                 zframe_t *frame = zmsg_pop(self->args->body);
                 if (NULL != frame) {
+                    randombytes_buf(nonce, crypto_secretbox_NONCEBYTES);
                     size_t data_plain_len = zframe_size(frame);
                     unsigned char *data_plain = (unsigned char *) zframe_data(frame);
                     size_t data_encrypted_len = crypto_secretbox_MACBYTES + data_plain_len;
@@ -185,14 +185,14 @@ send_request_to_broker(client_t *self) {
                     if (res != 0) {
                         return;
                     }
+                    zmsg_addmem(self->args->body, nonce, crypto_secretbox_NONCEBYTES);
                     zmsg_addmem(self->args->body, data_encrypted, data_encrypted_len);
                     zframe_destroy(&frame);
-                    (uint64_t) nonce[crypto_secretbox_NONCEBYTES - 9]++;
+
                 }
             }
 
-            // prepend identifier pubkey and nonce frames
-            zmsg_pushmem(self->args->body, nonce, crypto_secretbox_NONCEBYTES);
+            // prepend identifier pubkey and frames
             zmsg_pushmem(self->args->body, self->client_pk, crypto_kx_PUBLICKEYBYTES);
             zmsg_pushstr(self->args->body, "BB_MDP_SECURE");
         }
@@ -217,6 +217,44 @@ disconnect_from_broker(client_t *self) {
 
 }
 
+static int s_decrypt_body(zmsg_t *body, unsigned char *key) {
+    //decrypt frames one by one
+    int i;
+    int numframes = (int) zmsg_size(body);
+    unsigned char nonce[crypto_secretbox_NONCEBYTES];
+    for (i = 0; i < numframes; i += 2) {
+        // net nonce
+        zframe_t *f = zmsg_pop(body);
+        if (f) {
+            memcpy(nonce, zframe_data(f), crypto_secretbox_NONCEBYTES);
+            zframe_destroy(&f);
+            f = zmsg_pop(body);
+            if (f) {
+                unsigned char *frame_encrypted = zframe_data(f);
+                size_t frame_encrypted_len = zframe_size(f);
+                size_t frame_plain_len = frame_encrypted_len - crypto_secretbox_MACBYTES;
+                unsigned char *frame_plain = (unsigned char *) zmalloc(frame_plain_len);
+                if (frame_plain) {
+                    int res = crypto_secretbox_open_easy(frame_plain, frame_encrypted, frame_encrypted_len,
+                                                         nonce, key);
+                    if (0 == res) {
+                        zsys_debug("Decrypted frame #%d", i);
+                        zmsg_addmem(body, frame_plain, frame_plain_len);
+                    }
+                } else {
+                    return -1;
+                }
+                zframe_destroy(&f);
+            } else {
+                return -1;
+            }
+        } else {
+            return -1;
+        }
+    }
+    return 0;
+}
+
 
 //  ---------------------------------------------------------------------------
 //  send_partial_response
@@ -225,6 +263,22 @@ disconnect_from_broker(client_t *self) {
 static void
 send_partial_response(client_t *self) {
     zmsg_t *body = mdp_client_msg_get_body(self->message);
+    // Check if the response is encrypted
+    zframe_t *frame = zmsg_pop(body);
+    if (frame) {
+        if (zframe_streq(frame, "BB_MDP_SECURE")) {
+            zsys_debug("Encrypted message");
+            s_decrypt_body(body, self->session_key_rx);
+        } else if (zframe_streq(frame, "BB_MDP_PLAIN")) {
+            zsys_debug("Plain message");
+        } else {
+            zsys_error("Invalid message (missing security identifier)");
+            zframe_destroy(&frame);
+            return;
+        }
+        zframe_destroy(&frame);
+    }
+
     zsock_send(self->msgpipe, "sm", "PARTIAL", body);
 }
 
@@ -236,6 +290,21 @@ send_partial_response(client_t *self) {
 static void
 send_final_response(client_t *self) {
     zmsg_t *body = mdp_client_msg_get_body(self->message);
+    // Check if the response is encrypted
+    zframe_t *frame = zmsg_pop(body);
+    if (frame) {
+        if (zframe_streq(frame, "BB_MDP_SECURE")) {
+            zsys_debug("Encrypted message");
+            s_decrypt_body(body, self->session_key_rx);
+        } else if (zframe_streq(frame, "BB_MDP_PLAIN")) {
+            zsys_debug("Plain message");
+        } else {
+            zsys_error("Invalid message (missing security identifier)");
+            zframe_destroy(&frame);
+            return;
+        }
+        zframe_destroy(&frame);
+    }
     zsock_send(self->msgpipe, "sm", "FINAL", body);
 }
 
