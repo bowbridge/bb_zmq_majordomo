@@ -59,6 +59,86 @@ typedef struct {
 // Interval for sending heartbeat [ms]
 #define HEARTBEAT_DELAY 1000
 
+static int s_encrypt_body(zmsg_t *body, unsigned char *key) {
+    if (NULL != body && NULL != key) {
+        // encrypt the original body - frame by frame
+        unsigned char nonce[crypto_secretbox_NONCEBYTES];
+        int num_frames = (int) zmsg_size(body);
+        int i = 0;
+        for (i = 0; i < num_frames; i++) {
+            zframe_t *frame = zmsg_pop(body);
+            if (NULL != frame) {
+                randombytes_buf(nonce, crypto_secretbox_NONCEBYTES);
+                size_t data_plain_len = zframe_size(frame);
+                unsigned char *data_plain = (unsigned char *) zframe_data(frame);
+                size_t data_encrypted_len = crypto_secretbox_MACBYTES + data_plain_len;
+                unsigned char *data_encrypted = (unsigned char *) zmalloc(data_encrypted_len);
+                if (NULL == data_encrypted) {
+                    zsys_error("Memory allocation error");
+                    return -1;
+                }
+                int res = crypto_secretbox_easy(data_encrypted, data_plain,
+                                                data_plain_len,
+                                                nonce, key);
+                zsys_debug("Encrypting frame %d - %s", i + 1, res == 0 ? "SUCESS" : "ERROR");
+                if (res != 0) {
+                    return -1;
+                }
+                zmsg_addmem(body, nonce, crypto_secretbox_NONCEBYTES);
+                zmsg_addmem(body, data_encrypted, data_encrypted_len);
+                zframe_destroy(&frame);
+            }
+        }
+
+        // prepend identifier pubkey and frames
+        zmsg_pushstr(body, "BB_MDP_SECURE");
+        return 0;
+    }
+    return -1;
+}
+
+static int s_decrypt_body(zmsg_t *body, unsigned char *key) {
+    if (NULL != body && NULL != key) {
+        // decrypt the body, frame by frame
+        unsigned char nonce[crypto_secretbox_NONCEBYTES];
+
+        int num_frames = (int) zmsg_size(body);
+        int i = 0;
+        for (i = 0; i < num_frames; i += 2) {
+            zframe_t *frame = zmsg_pop(body);
+            if (frame) {
+                // nonce frame
+                memcpy(nonce, zframe_data(frame), crypto_secretbox_NONCEBYTES);
+                zframe_destroy(&frame);
+                frame = zmsg_pop(body);
+                if (frame) {
+                    unsigned char *ciphertext = zframe_data(frame);
+                    if (ciphertext) {
+                        size_t ciphertextlen = zframe_size(frame);
+                        size_t plaintextlen = ciphertextlen - crypto_secretbox_MACBYTES;
+                        unsigned char *plaintext = (unsigned char *) zmalloc(plaintextlen);
+                        if (plaintext) {
+                            int res = crypto_secretbox_open_easy(plaintext, ciphertext,
+                                                                 (unsigned long long int) ciphertextlen, nonce,
+                                                                 key);
+                            if (0 != res) {
+                                zsys_error("Failed to decrypt data frame #%d", (i + 1) / 2);
+                                return -1;
+                            }
+                            zmsg_addmem(body, plaintext, plaintextlen);
+                            zframe_destroy(&frame);
+                            zsys_debug("decrypted data frame #%d", (i + 1) / 2);
+                        }
+                    }
+                }
+            }
+        }
+        return 0;
+    }
+    return -1;
+}
+
+
 //  Allocate properties and structures for a new client instance.
 //  Return 0 if OK, -1 if failed
 
@@ -142,9 +222,19 @@ signal_connection_success(client_t *self) {
 static void
 signal_request(client_t *self) {
     mdp_worker_msg_t *worker_msg = self->message;
+
+    // Check if this is encrypted
+    zmsg_t *body = mdp_worker_msg_body(worker_msg);
+    zframe_t *frame = zmsg_pop(body);
+    if (frame) {
+        if (zframe_streq(frame, "BB_MDP_SECURE")) {
+            s_decrypt_body(body, self->session_key_rx);
+        }
+    }
+
     zsock_send(self->msgpipe, "sfm", "REQUEST",
                mdp_worker_msg_address(worker_msg),
-               mdp_worker_msg_body(worker_msg));
+               body);
 }
 
 
@@ -227,6 +317,12 @@ static void
 prepare_partial_response(client_t *self) {
     mdp_worker_msg_t *msg = self->message;
     mdp_worker_msg_set_address(msg, &self->args->address);
+    // Encrypt the body if we need to
+    if (NULL != self->session_key_tx) {
+        s_encrypt_body(self->args->reply_body, self->session_key_tx);
+    } else {
+        zmsg_pushstr(self->args->reply_body, "BB_MDP_PLAIN");
+    }
     mdp_worker_msg_set_body(msg, &self->args->reply_body);
 }
 
@@ -239,6 +335,12 @@ static void
 prepare_final_response(client_t *self) {
     mdp_worker_msg_t *msg = self->message;
     mdp_worker_msg_set_address(msg, &self->args->address);
+    // Encrypt the body if we need to
+    if (NULL != self->session_key_tx) {
+        s_encrypt_body(self->args->reply_body, self->session_key_tx);
+    } else {
+        zmsg_pushstr(self->args->reply_body, "BB_MDP_PLAIN");
+    }
     mdp_worker_msg_set_body(msg, &self->args->reply_body);
 }
 
