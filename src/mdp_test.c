@@ -37,56 +37,61 @@ main() {
     mdp_worker_set_verbose(worker);
 
 
-    zmsg_t *msg = zmsg_new();
-    assert(msg);
-    int res = zmsg_addstr(msg, "This is a super-secret message");
-    assert(res == 0);
+    int i = 0;
+    for (i = 0; i < 3; i++) {
+        zmsg_t *msg = zmsg_new();
+        assert(msg);
+        int res = zmsg_addstrf(msg, "This is a super-secret message # %d", i);
+        assert(res == 0);
 
-    mdp_client_request(client, service, &msg);
-    msg = zmsg_recv(worker);
-    zsock_t *worker_sock = mdp_worker_msgpipe(worker);
-    char *cmd = zstr_recv(worker_sock);
-    printf("Got command: %s\n", cmd);
+        mdp_client_request(client, service, &msg);
+        msg = zmsg_recv(worker);
+        zsock_t *worker_sock = mdp_worker_msgpipe(worker);
+        char *cmd = zstr_recv(worker_sock);
+        printf("Got command: %s\n", cmd);
 
-    zframe_t *address;
-    zmsg_t *message;
-    res = zsock_recv(worker_sock, "fm",
-                     &address, &message);
-    printf("res= %d. \n", res);
+        zframe_t *address;
+        zmsg_t *message;
+        res = zsock_recv(worker_sock, "fm",
+                         &address, &message);
+        printf("res= %d. \n", res);
 
 
-    // Process the message.
-    zframe_t *first = zmsg_first(message);
-    char *first_str = zframe_strdup(first);
-    printf("Got message: %s\n", first_str);
-    char response[64];
-    sprintf(response, "Partial response to %s", first_str);
-    zmsg_t *msg_response = zmsg_new();
-    zmsg_addstr(msg_response, response);
+        // Process the message.
+        zframe_t *first = zmsg_first(message);
+        char *first_str = zframe_strdup(first);
+        printf("Got message: %s\n", first_str);
+        char response[64];
+        sprintf(response, "Partial response to %s", first_str);
+        zmsg_t *msg_response = zmsg_new();
+        zmsg_addstr(msg_response, response);
 
-    // Make a copy of address, because mdp_worker_send_partial will destroy it.
-    zframe_t *address2 = zframe_dup(address);
-    mdp_worker_send_partial(worker, &address2, &msg_response);
+        // Make a copy of address, because mdp_worker_send_partial will destroy it.
+        zframe_t *address2 = zframe_dup(address);
+        mdp_worker_send_partial(worker, &address2, &msg_response);
 
-    // Wait for partial reponse.
-    zsock_t *client_sock = mdp_client_msgpipe(client);
-    res = zsock_recv(client_sock, "sm", &cmd, &message);
-    printf("Client (2): got command %s\n", cmd);
-    printf(" Response body:\n");
-    zmsg_print(message);
-    zmsg_destroy(&message);
+        // Wait for partial reponse.
+        zsock_t *client_sock = mdp_client_msgpipe(client);
+        res = zsock_recv(client_sock, "sm", &cmd, &message);
+        printf("Client (2): got command %s\n", cmd);
+        printf(" Response body:\n");
+        zmsg_print(message);
+        zmsg_destroy(&message);
 
-    sprintf(response, "Final response to %s", first_str);
-    msg_response = zmsg_new();
-    zmsg_addstr(msg_response, response);
+        sprintf(response, "Final response to %s", first_str);
+        msg_response = zmsg_new();
+        zmsg_addstr(msg_response, response);
 
-    mdp_worker_send_final(worker, &address, &msg_response);
+        mdp_worker_send_final(worker, &address, &msg_response);
 
-    // Wait for final response.
-    res = zsock_recv(client_sock, "sm", &cmd, &message);
-    printf("Client (2): got command %s\n", cmd);
-    printf(" Response body:\n");
-    zmsg_print(message);
+        // Wait for final response.
+        res = zsock_recv(client_sock, "sm", &cmd, &message);
+        printf("Client (2): got command %s\n", cmd);
+        printf(" Response body:\n");
+        zmsg_print(message);
+
+    }
+
 
     printf("Press Enter to stop");
     getchar();

@@ -747,6 +747,7 @@ struct _mdp_worker_t {
     zsock_t *msgpipe;           //  Pipe for async message flow
     uint8_t status;             //  Returned by actor reply
     char *reason;               //  Returned by actor reply
+    zframe_t *reply_address;
 };
 
 

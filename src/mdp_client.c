@@ -161,36 +161,37 @@ send_request_to_broker(client_t *self) {
                     self->client_pk = NULL;
                 }
             }
+        }
 
-            // encrypt the original body - frame by frame
-            unsigned char nonce[crypto_secretbox_NONCEBYTES];
-            int num_frames = (int) zmsg_size(self->args->body);
-            int i = 0;
-            for (i = 0; i < num_frames; i++) {
-                zframe_t *frame = zmsg_pop(self->args->body);
-                if (NULL != frame) {
-                    randombytes_buf(nonce, crypto_secretbox_NONCEBYTES);
-                    size_t data_plain_len = zframe_size(frame);
-                    unsigned char *data_plain = (unsigned char *) zframe_data(frame);
-                    size_t data_encrypted_len = crypto_secretbox_MACBYTES + data_plain_len;
-                    unsigned char *data_encrypted = (unsigned char *) zmalloc(data_encrypted_len);
-                    if (NULL == data_encrypted) {
-                        zsys_error("Memory allocation error");
-                        return;
-                    }
-                    int res = crypto_secretbox_easy(data_encrypted, data_plain,
-                                                    data_plain_len,
-                                                    nonce, self->session_key_tx);
-                    zsys_debug("Encrypting frame %d - %s", i + 1, res == 0 ? "SUCESS" : "ERROR");
-                    if (res != 0) {
-                        return;
-                    }
-                    zmsg_addmem(self->args->body, nonce, crypto_secretbox_NONCEBYTES);
-                    zmsg_addmem(self->args->body, data_encrypted, data_encrypted_len);
-                    zframe_destroy(&frame);
-
+        // encrypt the original body - frame by frame
+        unsigned char nonce[crypto_secretbox_NONCEBYTES];
+        int num_frames = (int) zmsg_size(self->args->body);
+        int i = 0;
+        for (i = 0; i < num_frames; i++) {
+            zframe_t *frame = zmsg_pop(self->args->body);
+            if (NULL != frame) {
+                randombytes_buf(nonce, crypto_secretbox_NONCEBYTES);
+                size_t data_plain_len = zframe_size(frame);
+                unsigned char *data_plain = (unsigned char *) zframe_data(frame);
+                size_t data_encrypted_len = crypto_secretbox_MACBYTES + data_plain_len;
+                unsigned char *data_encrypted = (unsigned char *) zmalloc(data_encrypted_len);
+                if (NULL == data_encrypted) {
+                    zsys_error("Memory allocation error");
+                    return;
                 }
+                int res = crypto_secretbox_easy(data_encrypted, data_plain,
+                                                data_plain_len,
+                                                nonce, self->session_key_tx);
+                zsys_debug("Encrypting frame %d - %s", i + 1, res == 0 ? "SUCESS" : "ERROR");
+                if (res != 0) {
+                    return;
+                }
+                zmsg_addmem(self->args->body, nonce, crypto_secretbox_NONCEBYTES);
+                zmsg_addmem(self->args->body, data_encrypted, data_encrypted_len);
+                zframe_destroy(&frame);
+
             }
+
 
             // prepend identifier pubkey and frames
             zmsg_pushmem(self->args->body, self->client_pk, crypto_kx_PUBLICKEYBYTES);
