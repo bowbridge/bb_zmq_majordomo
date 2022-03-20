@@ -349,13 +349,17 @@ handle_mmi(client_t *self, const char *service_name) {
 static int s_encrypt_body(zmsg_t *body, unsigned char *key) {
     if (NULL != body && NULL != key) {
         // encrypt the original body - frame by frame
-        unsigned char nonce[crypto_secretbox_NONCEBYTES];
         int num_frames = (int) zmsg_size(body);
+        // prepend identifier pubkey and first nonce
+        unsigned char initial_nonce[crypto_secretbox_NONCEBYTES];
+        randombytes_buf(initial_nonce, crypto_secretbox_NONCEBYTES);
+        unsigned char nonce[crypto_secretbox_NONCEBYTES];
+        memcpy(nonce, initial_nonce, crypto_secretbox_NONCEBYTES);
+
         int i = 0;
         for (i = 0; i < num_frames; i++) {
             zframe_t *frame = zmsg_pop(body);
             if (NULL != frame) {
-                randombytes_buf(nonce, crypto_secretbox_NONCEBYTES);
                 size_t data_plain_len = zframe_size(frame);
                 unsigned char *data_plain = (unsigned char *) zframe_data(frame);
                 size_t data_encrypted_len = crypto_secretbox_MACBYTES + data_plain_len;
@@ -367,18 +371,20 @@ static int s_encrypt_body(zmsg_t *body, unsigned char *key) {
                 int res = crypto_secretbox_easy(data_encrypted, data_plain,
                                                 data_plain_len,
                                                 nonce, key);
-                zsys_debug("Encrypting frame %d - %s", i + 1, res == 0 ? "SUCESS" : "ERROR");
+                zsys_debug("BROKER: Encrypting frame %d - %s", i + 1, res == 0 ? "SUCESS" : "ERROR");
                 if (res != 0) {
                     return -1;
                 }
-                zmsg_addmem(body, nonce, crypto_secretbox_NONCEBYTES);
                 zmsg_addmem(body, data_encrypted, data_encrypted_len);
                 zframe_destroy(&frame);
+                // increment the nonce for the next frame (if any)
+                sodium_increment(nonce, crypto_secretbox_NONCEBYTES);
             }
         }
-
-        // prepend identifier pubkey and frames
+        zmsg_pushmem(body, initial_nonce, crypto_secretbox_NONCEBYTES);
         zmsg_pushstr(body, "BB_MDP_SECURE");
+
+
     } else {
         // prepend identifier pubkey and frames
         zmsg_pushstr(body, "BB_MDP_PLAIN");
@@ -390,15 +396,15 @@ static int s_decrypt_body(zmsg_t *body, unsigned char *key) {
     if (NULL != body && NULL != key) {
         // decrypt the body, frame by frame
         unsigned char nonce[crypto_secretbox_NONCEBYTES];
+        zframe_t *frame = zmsg_pop(body);
+        if (frame) {
+            // nonce frame
+            memcpy(nonce, zframe_data(frame), crypto_secretbox_NONCEBYTES);
+            zframe_destroy(&frame);
 
-        int num_frames = (int) zmsg_size(body);
-        int i = 0;
-        for (i = 0; i < num_frames; i += 2) {
-            zframe_t *frame = zmsg_pop(body);
-            if (frame) {
-                // nonce frame
-                memcpy(nonce, zframe_data(frame), crypto_secretbox_NONCEBYTES);
-                zframe_destroy(&frame);
+            int num_frames = (int) zmsg_size(body);
+            int i = 0;
+            for (i = 0; i < num_frames; i++) {
                 frame = zmsg_pop(body);
                 if (frame) {
                     unsigned char *ciphertext = zframe_data(frame);
@@ -411,12 +417,14 @@ static int s_decrypt_body(zmsg_t *body, unsigned char *key) {
                                                                  (unsigned long long int) ciphertextlen, nonce,
                                                                  key);
                             if (0 != res) {
-                                zsys_error("Failed to decrypt data frame #%d", (i + 1) / 2);
+                                zsys_error("BROKER: Failed to decrypt data frame #%d", i + 1);
                                 return -1;
                             }
                             zmsg_addmem(body, plaintext, plaintextlen);
                             zframe_destroy(&frame);
-                            zsys_debug("decrypted data frame #%d", (i + 1) / 2);
+                            zsys_debug("BROKER: decrypted data frame #%d", (i + 1));
+                            // increment the nonce for the next frame (if any)
+                            sodium_increment(nonce, crypto_secretbox_NONCEBYTES);
                         }
                     }
                 }

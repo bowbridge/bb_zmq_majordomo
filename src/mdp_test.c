@@ -41,26 +41,38 @@ main() {
     for (i = 0; i < 3; i++) {
         zmsg_t *msg = zmsg_new();
         assert(msg);
-        int res = zmsg_addstrf(msg, "This is a super-secret message # %d", i);
+        int res = zmsg_addstrf(msg, "This is a super-secret message #1");
+        assert(res == 0);
+        res = zmsg_addstrf(msg, "This is a super-secret message #2");
+        assert(res == 0);
+        res = zmsg_addstrf(msg, "This is a super-secret message #3");
         assert(res == 0);
 
         mdp_client_request(client, service, &msg);
         msg = zmsg_recv(worker);
         zsock_t *worker_sock = mdp_worker_msgpipe(worker);
-        char *cmd = zstr_recv(worker_sock);
-        printf("Got command: %s\n", cmd);
+        char *cmd = NULL;
+
 
         zframe_t *address;
         zmsg_t *message;
-        res = zsock_recv(worker_sock, "fm",
+        res = zsock_recv(worker_sock, "sfm", &cmd,
                          &address, &message);
         printf("res= %d. \n", res);
+        printf("Got command: %s\n", cmd);
 
 
         // Process the message.
         zframe_t *first = zmsg_first(message);
         char *first_str = zframe_strdup(first);
-        printf("Got message: %s\n", first_str);
+        printf("Got first message: %s\n", first_str);
+        zframe_t *second = zmsg_next(message);
+        char *second_str = zframe_strdup(second);
+        printf("Got second message: %s\n", second_str);
+        zframe_t *third = zmsg_next(message);
+        char *third_str = zframe_strdup(third);
+        printf("Got third message: %s\n", third_str);
+
         char response[64];
         sprintf(response, "Partial response to %s", first_str);
         zmsg_t *msg_response = zmsg_new();

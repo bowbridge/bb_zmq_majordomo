@@ -497,7 +497,7 @@ s_client_handle_cmdpipe(zloop_t *loop, zsock_t *reader, void *argument) {
         self->terminated = true;    //  Shutdown the engine
     else if (streq (method, "CONSTRUCTOR")) {
         zstr_free(&self->args.endpoint);
-        zsock_recv(self->cmdpipe, "ss", &self->args.endpoint, &self->client.broker_pk);
+        zsock_recv(self->cmdpipe, "ss", &self->args.endpoint, &self->client.broker_pk_b64);
         s_client_execute(self, constructor_event);
     } else if (streq (method, "DESTRUCTOR")) {
         s_client_execute(self, destructor_event);

@@ -40,8 +40,10 @@ typedef struct {
     client_args_t *args;        //  Arguments from methods
 
     //  TODO: Add specific properties for your application
-    unsigned char *broker_pk;
+    unsigned char *broker_pk_b64;
+    unsigned char *broker_pk_bin;
     unsigned char *client_pk;
+    unsigned char *client_sk;
     unsigned char *session_key_rx;
     unsigned char *session_key_tx;
 } client_t;
@@ -124,53 +126,64 @@ send_request_to_broker(client_t *self) {
     mdp_client_msg_set_id(msg, MDP_CLIENT_MSG_CLIENT_REQUEST);
     mdp_client_msg_set_service(msg, self->args->service);
     // stack 3 frames to the original body: #1 PLAIN/SECURE Identifier, #2 client ephemeral PK, nonce, encrypted body
-    if (NULL != self->broker_pk) {
-        if (NULL == self->client_pk) {
-            // generate
-            unsigned char client_sk[crypto_kx_SECRETKEYBYTES];
+    if (NULL != self->broker_pk_b64) {
+        if (NULL == self->client_pk || NULL == self->client_sk) {
+            // generate new keys as they don't exist for this session
             self->client_pk = (unsigned char *) zmalloc(crypto_kx_PUBLICKEYBYTES);
+            self->client_sk = (unsigned char *) zmalloc(crypto_kx_SECRETKEYBYTES);
 
             // generate an ephemeral keypair for the key exchange
-            if (crypto_kx_keypair(self->client_pk, (unsigned char *) &client_sk)) {
-                zsys_error("Failed to generate Public/private key pairs");
+            int res = crypto_kx_keypair(self->client_pk, self->client_sk);
+            if (0 != res) {
+                zsys_error("Failed to generate Public/private key pair");
                 free(self->client_pk);
                 self->client_pk = NULL;
-            } else {
-                // base64 decode the broker PK
-                unsigned char broker_pk[crypto_kx_PUBLICKEYBYTES];
-                size_t binlen = 0;
-                sodium_base642bin(broker_pk, crypto_kx_PUBLICKEYBYTES, (const char *) self->broker_pk,
-                                  strlen((char *) self->broker_pk),
-                                  NULL, &binlen, NULL, sodium_base64_VARIANT_URLSAFE_NO_PADDING);
+                free(self->client_sk);
+                self->client_sk = NULL;
+            }
 
-                // generate session keys
-                self->session_key_tx = (unsigned char *) zmalloc(crypto_kx_SESSIONKEYBYTES);
-                self->session_key_rx = (unsigned char *) zmalloc(crypto_kx_SESSIONKEYBYTES);
-                if (crypto_kx_client_session_keys(self->session_key_rx, self->session_key_tx, self->client_pk,
-                                                  client_sk, broker_pk)) {
-                    zsys_error("Failed to generate session keys");
-                    if (self->session_key_tx) {
-                        free(self->session_key_tx);
-                        self->session_key_tx = NULL;
-                    }
-                    if (self->session_key_rx) {
-                        free(self->session_key_rx);
-                        self->session_key_rx = NULL;
-                    }
-                    free(self->client_pk);
-                    self->client_pk = NULL;
+            // base64 decode the broker PK
+            if (NULL == self->broker_pk_bin) {
+                self->broker_pk_bin = (unsigned char *) zmalloc(crypto_kx_PUBLICKEYBYTES);
+                size_t binlen = 0;
+                sodium_base642bin(self->broker_pk_bin, crypto_kx_PUBLICKEYBYTES, (const char *) self->broker_pk_b64,
+                                  strlen((char *) self->broker_pk_b64),
+                                  NULL, &binlen, NULL, sodium_base64_VARIANT_URLSAFE_NO_PADDING);
+            }
+
+            // generate session keys
+            self->session_key_tx = (unsigned char *) zmalloc(crypto_kx_SESSIONKEYBYTES);
+            self->session_key_rx = (unsigned char *) zmalloc(crypto_kx_SESSIONKEYBYTES);
+            if (crypto_kx_client_session_keys(self->session_key_rx, self->session_key_tx, self->client_pk,
+                                              self->client_sk, self->broker_pk_bin)) {
+                zsys_error("Failed to generate session keys");
+                if (self->session_key_tx) {
+                    free(self->session_key_tx);
+                    self->session_key_tx = NULL;
                 }
+                if (self->session_key_rx) {
+                    free(self->session_key_rx);
+                    self->session_key_rx = NULL;
+                }
+                free(self->client_pk);
+                self->client_pk = NULL;
+                free(self->client_sk);
+                self->client_sk = NULL;
             }
         }
 
+
         // encrypt the original body - frame by frame
+        unsigned char initial_nonce[crypto_secretbox_NONCEBYTES];
+        randombytes_buf(initial_nonce, crypto_secretbox_NONCEBYTES);
         unsigned char nonce[crypto_secretbox_NONCEBYTES];
+        memcpy(nonce, initial_nonce, crypto_secretbox_NONCEBYTES);
+
         int num_frames = (int) zmsg_size(self->args->body);
         int i = 0;
         for (i = 0; i < num_frames; i++) {
             zframe_t *frame = zmsg_pop(self->args->body);
             if (NULL != frame) {
-                randombytes_buf(nonce, crypto_secretbox_NONCEBYTES);
                 size_t data_plain_len = zframe_size(frame);
                 unsigned char *data_plain = (unsigned char *) zframe_data(frame);
                 size_t data_encrypted_len = crypto_secretbox_MACBYTES + data_plain_len;
@@ -182,21 +195,23 @@ send_request_to_broker(client_t *self) {
                 int res = crypto_secretbox_easy(data_encrypted, data_plain,
                                                 data_plain_len,
                                                 nonce, self->session_key_tx);
-                zsys_debug("Encrypting frame %d - %s", i + 1, res == 0 ? "SUCESS" : "ERROR");
+                zsys_debug("CLIENT: Encrypting frame %d - %s", i + 1, res == 0 ? "SUCESS" : "ERROR");
                 if (res != 0) {
                     return;
                 }
-                zmsg_addmem(self->args->body, nonce, crypto_secretbox_NONCEBYTES);
                 zmsg_addmem(self->args->body, data_encrypted, data_encrypted_len);
                 zframe_destroy(&frame);
 
+                // increment the nonce for the next frame (if any)
+                sodium_increment(nonce, crypto_secretbox_NONCEBYTES);
+
             }
-
-
-            // prepend identifier pubkey and frames
-            zmsg_pushmem(self->args->body, self->client_pk, crypto_kx_PUBLICKEYBYTES);
-            zmsg_pushstr(self->args->body, "BB_MDP_SECURE");
         }
+        // prepend identifier pubkey and first nonce
+        zmsg_pushmem(self->args->body, initial_nonce, crypto_secretbox_NONCEBYTES);
+        zmsg_pushmem(self->args->body, self->client_pk, crypto_kx_PUBLICKEYBYTES);
+        zmsg_pushstr(self->args->body, "BB_MDP_SECURE");
+
     } else {
         // in PLAIN mode, just add the BB_MDP_PLAINTEXT identifier frame
         zmsg_pushstr(self->args->body, "BB_MDP_PLAIN");
@@ -221,14 +236,13 @@ disconnect_from_broker(client_t *self) {
 static int s_decrypt_body(zmsg_t *body, unsigned char *key) {
     //decrypt frames one by one
     int i;
-    int numframes = (int) zmsg_size(body);
     unsigned char nonce[crypto_secretbox_NONCEBYTES];
-    for (i = 0; i < numframes; i += 2) {
-        // net nonce
-        zframe_t *f = zmsg_pop(body);
-        if (f) {
-            memcpy(nonce, zframe_data(f), crypto_secretbox_NONCEBYTES);
-            zframe_destroy(&f);
+    zframe_t *f = zmsg_pop(body);
+    if (f) {
+        memcpy(nonce, zframe_data(f), crypto_secretbox_NONCEBYTES);
+        zframe_destroy(&f);
+        int numframes = (int) zmsg_size(body);
+        for (i = 0; i < numframes; i += 2) {
             f = zmsg_pop(body);
             if (f) {
                 unsigned char *frame_encrypted = zframe_data(f);
@@ -246,12 +260,14 @@ static int s_decrypt_body(zmsg_t *body, unsigned char *key) {
                     return -1;
                 }
                 zframe_destroy(&f);
+                // increment the nonce for the next frame (if any)
+                sodium_increment(nonce, crypto_secretbox_NONCEBYTES);
             } else {
                 return -1;
             }
-        } else {
-            return -1;
         }
+    } else {
+        return -1;
     }
     return 0;
 }
