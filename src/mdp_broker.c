@@ -142,6 +142,10 @@ s_worker_destroy(void *argument) {
     worker_t *self = (worker_t *) argument;
     zframe_destroy(&self->address);
     free(self->identity);
+    if (self->session_key_tx)
+        free(self->session_key_tx);
+    if (self->session_key_rx)
+        free(self->session_key_rx);
     free(self);
 }
 
@@ -242,7 +246,12 @@ server_initialize(server_t *self) {
 static void
 server_terminate(server_t *self) {
     //  Destroy properties here
+    if (self->my_sk)
+        free(self->my_sk);
+    if (self->my_pk)
+        free(self->my_pk);
     zlist_destroy(&self->waiting);
+    zlist_destroy(&self->known_psks);
     zhash_destroy(&self->workers);
     zhash_destroy(&self->services);
 }
@@ -278,6 +287,12 @@ static void
 client_terminate(client_t *self) {
     //  Destroy properties here
     free(self->service_name);
+    if (self->session_key_tx)
+        free(self->session_key_tx);
+    if (self->session_key_rx)
+        free(self->session_key_rx);
+    if (self->client_pk)
+        free(self->client_pk);
 }
 
 //  ---------------------------------------------------------------------------
@@ -376,6 +391,7 @@ static int s_encrypt_body(zmsg_t *body, unsigned char *key) {
                     return -1;
                 }
                 zmsg_addmem(body, data_encrypted, data_encrypted_len);
+                free(data_encrypted);
                 zframe_destroy(&frame);
                 // increment the nonce for the next frame (if any)
                 sodium_increment(nonce, crypto_secretbox_NONCEBYTES);
@@ -466,16 +482,18 @@ handle_request(client_t *self) {
             zframe_destroy(&f);
             f = zmsg_pop(body);
             if (f) {
-                self->client_pk = (unsigned char *) zmalloc(crypto_kx_PUBLICKEYBYTES);
-                memcpy(self->client_pk, zframe_data(f), crypto_kx_PUBLICKEYBYTES);
-                self->session_key_tx = (unsigned char *) zmalloc(crypto_kx_SESSIONKEYBYTES);
-                self->session_key_rx = (unsigned char *) zmalloc(crypto_kx_SESSIONKEYBYTES);
-                if (crypto_kx_server_session_keys(self->session_key_rx, self->session_key_tx, self->server->my_pk,
-                                                  self->server->my_sk, self->client_pk)) {
-                    zsys_error("Failed to generate session keys");
-                    return;
+                if (self->session_key_tx == NULL || self->session_key_rx == NULL) {
+                    self->client_pk = (unsigned char *) zmalloc(crypto_kx_PUBLICKEYBYTES);
+                    memcpy(self->client_pk, zframe_data(f), crypto_kx_PUBLICKEYBYTES);
+                    self->session_key_tx = (unsigned char *) zmalloc(crypto_kx_SESSIONKEYBYTES);
+                    self->session_key_rx = (unsigned char *) zmalloc(crypto_kx_SESSIONKEYBYTES);
+                    if (crypto_kx_server_session_keys(self->session_key_rx, self->session_key_tx, self->server->my_pk,
+                                                      self->server->my_sk, self->client_pk)) {
+                        zsys_error("Failed to generate session keys");
+                        return;
+                    }
+                    zsys_debug("Session keys with Client established");
                 }
-                zsys_debug("Session keys with Client established");
                 zframe_destroy(&f);
 
                 // decrypt the body, frame by frame
@@ -519,6 +537,7 @@ handle_worker_partial(client_t *self) {
                 char *identity = zframe_strhex(mdp_msg_routing_id(msg));
                 worker_t *worker =
                         (worker_t *) zhash_lookup(self->server->workers, identity);
+                free(identity);
                 if (worker) {
                     s_decrypt_body(body, worker->session_key_rx);
                 }
@@ -526,6 +545,7 @@ handle_worker_partial(client_t *self) {
                 // get the client's key
                 char *hashkey = zframe_strhex(address);
                 s_client_t *client = (s_client_t *) zhash_lookup(self->server->clients, hashkey);
+                free(hashkey);
                 s_encrypt_body(body, client->client.session_key_tx);
             }
             zframe_destroy(&frame);
@@ -571,6 +591,7 @@ handle_worker_final(client_t *self) {
                     // get the client's key
                     char *hashkey = zframe_strhex(address);
                     s_client_t *client = (s_client_t *) zhash_lookup(self->server->clients, hashkey);
+                    free(hashkey);
                     s_encrypt_body(body, client->client.session_key_tx);
                 }
                 zframe_destroy(&frame);

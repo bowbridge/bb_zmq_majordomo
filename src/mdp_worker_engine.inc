@@ -207,6 +207,13 @@ s_client_destroy(s_client_t **self_p) {
         s_client_t *self = *self_p;
         zstr_free(&self->args.endpoint);
         zstr_free(&self->args.service);
+        /*      if (self->client.broker_pk)
+                  free(self->client.broker_pk);
+              if (self->client.session_key_tx)
+                  free(self->client.session_key_tx);
+              if (self->client.auth_key)
+                  free(self->client.auth_key);
+                  */
         zframe_destroy(&self->args.address);
         zmsg_destroy(&self->args.reply_body);
         client_terminate(&self->client);

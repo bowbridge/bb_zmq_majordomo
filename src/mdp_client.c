@@ -200,6 +200,7 @@ send_request_to_broker(client_t *self) {
                     return;
                 }
                 zmsg_addmem(self->args->body, data_encrypted, data_encrypted_len);
+                free(data_encrypted);
                 zframe_destroy(&frame);
 
                 // increment the nonce for the next frame (if any)

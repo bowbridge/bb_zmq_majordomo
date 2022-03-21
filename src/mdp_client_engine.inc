@@ -187,6 +187,18 @@ s_client_destroy(s_client_t **self_p) {
         s_client_t *self = *self_p;
         zstr_free(&self->args.endpoint);
         zstr_free(&self->args.service);
+        if (self->client.broker_pk_bin)
+            free(self->client.broker_pk_bin);
+        if (self->client.broker_pk_b64)
+            free(self->client.broker_pk_b64);
+        if (self->client.client_pk)
+            free(self->client.client_pk);
+        if (self->client.client_sk)
+            free(self->client.client_sk);
+        if (self->client.session_key_tx)
+            free(self->client.session_key_tx);
+        if (self->client.session_key_rx)
+            free(self->client.session_key_rx);
         zmsg_destroy(&self->args.body);
         client_terminate(&self->client);
         mdp_client_msg_destroy(&self->message);

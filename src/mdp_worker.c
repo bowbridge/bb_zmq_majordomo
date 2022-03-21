@@ -94,6 +94,7 @@ static int s_encrypt_body(zmsg_t *body, unsigned char *key) {
                 }
 
                 zmsg_addmem(body, data_encrypted, data_encrypted_len);
+                free(data_encrypted);
                 zframe_destroy(&frame);
                 // increment the nonce for the next frame (if any)
                 sodium_increment(nonce, crypto_secretbox_NONCEBYTES);
@@ -274,6 +275,14 @@ received_heartbeat(client_t *self) {
 
 static void
 destroy_worker(client_t *self) {
+    if (self->session_key_tx)
+        free(self->session_key_tx);
+    if (self->session_key_rx)
+        free(self->session_key_rx);
+    if (self->auth_key)
+        free(self->auth_key);
+    if (self->broker_pk)
+        free(self->broker_pk);
 }
 
 
