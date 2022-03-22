@@ -105,11 +105,17 @@ main() {
     }
 
 
-    printf("Press Enter to stop");
+    printf("Press Enter to stop the client");
     getchar();
-
-    zactor_destroy(&broker);
-    mdp_worker_destroy(&worker);
     mdp_client_destroy(&client);
+
+    printf("Press Enter to stop the worker");
+    getchar();
+    mdp_worker_destroy(&worker);
+
+    printf("Press Enter to stop the broker");
+    getchar();
+    zactor_destroy(&broker);
+
     return 0;
 }

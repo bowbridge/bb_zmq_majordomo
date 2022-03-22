@@ -275,14 +275,25 @@ received_heartbeat(client_t *self) {
 
 static void
 destroy_worker(client_t *self) {
-    if (self->session_key_tx)
+    if (self->session_key_tx) {
         free(self->session_key_tx);
-    if (self->session_key_rx)
+        self->session_key_tx = NULL;
+    }
+
+    if (self->session_key_rx) {
         free(self->session_key_rx);
-    if (self->auth_key)
+        self->session_key_rx = NULL;
+    }
+
+    if (self->auth_key) {
         free(self->auth_key);
-    if (self->broker_pk)
+        self->auth_key = NULL;
+    }
+
+    if (self->broker_pk) {
         free(self->broker_pk);
+        self->broker_pk = NULL;
+    }
 }
 
 

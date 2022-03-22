@@ -251,7 +251,10 @@ server_terminate(server_t *self) {
     if (self->my_pk)
         free(self->my_pk);
     zlist_destroy(&self->waiting);
-    zlist_destroy(&self->known_psks);
+    if (self->known_psks) {
+        zlist_destroy(&self->known_psks);
+        self->known_psks = NULL;
+    }
     zhash_destroy(&self->workers);
     zhash_destroy(&self->services);
 }
