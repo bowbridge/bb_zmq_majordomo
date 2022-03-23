@@ -486,26 +486,26 @@ handle_request(client_t *self) {
             f = zmsg_pop(body);
             if (f) {
                 // calculate keys if the ephemeral client PK changed, of keys have not been generated before
-                if ((self->client_pk != NULL &&
+                /* if ((self->client_pk != NULL &&
                      memcmp(zframe_data(f), self->client_pk, crypto_kx_PUBLICKEYBYTES) != 0) ||
-                    self->session_key_tx == NULL || self->session_key_rx == NULL) {
-                    if (NULL == self->client_pk) {
-                        self->client_pk = (unsigned char *) zmalloc(crypto_kx_PUBLICKEYBYTES);
-                    }
-                    memcpy(self->client_pk, zframe_data(f), crypto_kx_PUBLICKEYBYTES);
-                    if (NULL == self->session_key_tx) {
-                        self->session_key_tx = (unsigned char *) zmalloc(crypto_kx_SESSIONKEYBYTES);
-                    }
-                    if (NULL == self->session_key_rx) {
-                        self->session_key_rx = (unsigned char *) zmalloc(crypto_kx_SESSIONKEYBYTES);
-                    }
-                    if (crypto_kx_server_session_keys(self->session_key_rx, self->session_key_tx, self->server->my_pk,
-                                                      self->server->my_sk, self->client_pk)) {
-                        zsys_error("Failed to generate session keys");
-                        return;
-                    }
-                    zsys_debug("Session keys with Client established");
+                    self->session_key_tx == NULL || self->session_key_rx == NULL) { */
+                if (NULL == self->client_pk) {
+                    self->client_pk = (unsigned char *) zmalloc(crypto_kx_PUBLICKEYBYTES);
                 }
+                memcpy(self->client_pk, zframe_data(f), crypto_kx_PUBLICKEYBYTES);
+                if (NULL == self->session_key_tx) {
+                    self->session_key_tx = (unsigned char *) zmalloc(crypto_kx_SESSIONKEYBYTES);
+                }
+                if (NULL == self->session_key_rx) {
+                    self->session_key_rx = (unsigned char *) zmalloc(crypto_kx_SESSIONKEYBYTES);
+                }
+                if (crypto_kx_server_session_keys(self->session_key_rx, self->session_key_tx, self->server->my_pk,
+                                                  self->server->my_sk, self->client_pk)) {
+                    zsys_error("Failed to generate session keys");
+                    return;
+                }
+                zsys_debug("Session keys with Client established");
+                //}
                 zframe_destroy(&f);
 
                 // decrypt the body, frame by frame
