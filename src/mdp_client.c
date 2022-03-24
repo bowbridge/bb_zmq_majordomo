@@ -208,6 +208,20 @@ send_request_to_broker(client_t *self) {
 
             }
         }
+        // add the "canary" frame
+        char *canary = "BB_MDP_SECURE";
+        unsigned char *data_encrypted = (unsigned char *) zmalloc(strlen(canary) + crypto_secretbox_MACBYTES);
+        zsys_debug("CLIENT: Encrypting with key %2x %2x ... %2x %2x ", self->session_key_tx[0], self->session_key_tx[1],
+                   self->session_key_tx[crypto_kx_SESSIONKEYBYTES - 2],
+                   self->session_key_tx[crypto_kx_SESSIONKEYBYTES - 1]);
+
+        crypto_secretbox_easy(data_encrypted, (unsigned char *) canary,
+                              strlen(canary),
+                              nonce, self->session_key_tx);
+        zmsg_addmem(self->args->body, data_encrypted, strlen(canary) + crypto_secretbox_MACBYTES);
+        free(data_encrypted);
+
+
         // prepend identifier pubkey and first nonce
         zmsg_pushmem(self->args->body, initial_nonce, crypto_secretbox_NONCEBYTES);
         zmsg_pushmem(self->args->body, self->client_pk, crypto_kx_PUBLICKEYBYTES);
@@ -242,7 +256,10 @@ static int s_decrypt_body(zmsg_t *body, unsigned char *key) {
     if (f) {
         memcpy(nonce, zframe_data(f), crypto_secretbox_NONCEBYTES);
         zframe_destroy(&f);
-        int numframes = (int) zmsg_size(body);
+        int numframes = (int) zmsg_size(body) - 1;
+        zsys_debug("BROKER: Decrypting with key %2x %2x ... %2x %2x ", key[0], key[1],
+                   key[crypto_kx_SESSIONKEYBYTES - 2],
+                   key[crypto_kx_SESSIONKEYBYTES - 1]);
         for (i = 0; i < numframes; i += 2) {
             f = zmsg_pop(body);
             if (f) {
@@ -267,6 +284,23 @@ static int s_decrypt_body(zmsg_t *body, unsigned char *key) {
                 return -1;
             }
         }
+
+        // get/decrypt "Canary" frame
+        f = zmsg_pop(body);
+        size_t ciphertextlen = zframe_size(f);
+        size_t plaintextlen = ciphertextlen - crypto_secretbox_MACBYTES;
+        unsigned char *plaintext = (unsigned char *) zmalloc(plaintextlen);
+        int res = crypto_secretbox_open_easy(plaintext, zframe_data(f),
+                                             (unsigned long long int) ciphertextlen, nonce,
+                                             key);
+        if (0 != res ||
+            0 != memcmp(plaintext, "BB_MDP_SECURE", strlen("BB_MDP_SECURE"))) {
+            zsys_error("CLEINT: Decryption error - Check failed");
+            zmsg_destroy(&body);
+            zframe_destroy(&f);
+            return -1;
+        }
+
     } else {
         return -1;
     }

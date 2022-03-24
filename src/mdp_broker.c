@@ -375,6 +375,9 @@ static int s_encrypt_body(zmsg_t *body, unsigned char *key) {
         memcpy(nonce, initial_nonce, crypto_secretbox_NONCEBYTES);
 
         int i = 0;
+        zsys_debug("BROKER: Encrypting with key %2x %2x ... %2x %2x ", key[0], key[1],
+                   key[crypto_kx_SESSIONKEYBYTES - 2],
+                   key[crypto_kx_SESSIONKEYBYTES - 1]);
         for (i = 0; i < num_frames; i++) {
             zframe_t *frame = zmsg_pop(body);
             if (NULL != frame) {
@@ -400,6 +403,15 @@ static int s_encrypt_body(zmsg_t *body, unsigned char *key) {
                 sodium_increment(nonce, crypto_secretbox_NONCEBYTES);
             }
         }
+        // add the "canary" frame
+        char *canary = "BB_MDP_SECURE";
+        unsigned char *data_encrypted = (unsigned char *) zmalloc(strlen(canary) + crypto_secretbox_MACBYTES);
+        crypto_secretbox_easy(data_encrypted, (unsigned char *) canary,
+                              strlen(canary),
+                              nonce, key);
+        zmsg_addmem(body, data_encrypted, strlen(canary) + crypto_secretbox_MACBYTES);
+        free(data_encrypted);
+
         zmsg_pushmem(body, initial_nonce, crypto_secretbox_NONCEBYTES);
         zmsg_pushstr(body, "BB_MDP_SECURE");
 
@@ -421,8 +433,11 @@ static int s_decrypt_body(zmsg_t *body, unsigned char *key) {
             memcpy(nonce, zframe_data(frame), crypto_secretbox_NONCEBYTES);
             zframe_destroy(&frame);
 
-            int num_frames = (int) zmsg_size(body);
+            int num_frames = (int) zmsg_size(body) - 1;
             int i = 0;
+            zsys_debug("BROKER: Decrypting with key %2x %2x ... %2x %2x ", key[0], key[1],
+                       key[crypto_kx_SESSIONKEYBYTES - 2],
+                       key[crypto_kx_SESSIONKEYBYTES - 1]);
             for (i = 0; i < num_frames; i++) {
                 frame = zmsg_pop(body);
                 if (frame) {
@@ -447,6 +462,22 @@ static int s_decrypt_body(zmsg_t *body, unsigned char *key) {
                         }
                     }
                 }
+            }
+
+            // get/decrypt "Canary" frame
+            frame = zmsg_pop(body);
+            size_t ciphertextlen = zframe_size(frame);
+            size_t plaintextlen = ciphertextlen - crypto_secretbox_MACBYTES;
+            unsigned char *plaintext = (unsigned char *) zmalloc(plaintextlen);
+            int res = crypto_secretbox_open_easy(plaintext, zframe_data(frame),
+                                                 (unsigned long long int) ciphertextlen, nonce,
+                                                 key);
+            if (0 != res ||
+                0 != memcmp(plaintext, "BB_MDP_SECURE", strlen("BB_MDP_SECURE"))) {
+                zsys_error("BROKER: Decryption error - Check failed");
+                zmsg_destroy(&body);
+                zframe_destroy(&frame);
+                return -1;
             }
         }
         return 0;
