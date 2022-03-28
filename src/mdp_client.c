@@ -257,7 +257,7 @@ static int s_decrypt_body(zmsg_t *body, unsigned char *key) {
         memcpy(nonce, zframe_data(f), crypto_secretbox_NONCEBYTES);
         zframe_destroy(&f);
         int numframes = (int) zmsg_size(body) - 1;
-        zsys_debug("BROKER: Decrypting with key %2x %2x ... %2x %2x ", key[0], key[1],
+        zsys_debug("CLIENT: Decrypting with key %2x %2x ... %2x %2x ", key[0], key[1],
                    key[crypto_kx_SESSIONKEYBYTES - 2],
                    key[crypto_kx_SESSIONKEYBYTES - 1]);
         for (i = 0; i < numframes; i += 2) {
@@ -295,7 +295,7 @@ static int s_decrypt_body(zmsg_t *body, unsigned char *key) {
                                              key);
         if (0 != res ||
             0 != memcmp(plaintext, "BB_MDP_SECURE", strlen("BB_MDP_SECURE"))) {
-            zsys_error("CLEINT: Decryption error - Check failed");
+            zsys_error("CLIENT: Decryption error - Check failed");
             zmsg_destroy(&body);
             zframe_destroy(&f);
             return -1;

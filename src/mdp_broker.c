@@ -540,8 +540,11 @@ handle_request(client_t *self) {
                 zframe_destroy(&f);
 
                 // decrypt the body, frame by frame
-                s_decrypt_body(body, self->session_key_rx);
-
+                if (0 != s_decrypt_body(body, self->session_key_rx)) {
+                    zsys_error("BROKER: Decryption error");
+                    zmsg_destroy(&body);
+                    return;
+                }
             } else return;
         }
         zframe_destroy(&f);
@@ -582,7 +585,11 @@ handle_worker_partial(client_t *self) {
                         (worker_t *) zhash_lookup(self->server->workers, identity);
                 free(identity);
                 if (worker) {
-                    s_decrypt_body(body, worker->session_key_rx);
+                    if (0 != s_decrypt_body(body, worker->session_key_rx)) {
+                        zsys_error("BROKER: Decryption Error");
+                        zmsg_destroy(&body);
+                        return;
+                    }
                 }
 
                 // get the client's key
@@ -629,7 +636,11 @@ handle_worker_final(client_t *self) {
             if (frame) {
                 if (zframe_streq(frame, "BB_MDP_SECURE")) {
                     // Get the worker's keys
-                    s_decrypt_body(body, worker->session_key_rx);
+                    if (0 != s_decrypt_body(body, worker->session_key_rx)) {
+                        zsys_error("BROKER: Decryption error");
+                        zmsg_destroy(&body);
+                        return;
+                    }
 
                     // get the client's key
                     char *hashkey = zframe_strhex(address);

@@ -43,12 +43,13 @@ typedef enum {
 } event_t;
 
 //  Names for state machine logging and error reporting
-static char *
+/*static char *
         s_state_name[] = {
                 "(NONE)",
                 "start",
                 "defaults"
         };
+*/
 
 static char *
         s_event_name[] = {
@@ -317,7 +318,6 @@ s_satisfy_pedantic_compilers(void) {
 static event_t
 s_protocol_event(mdp_msg_t *message) {
     assert (message);
-    zsys_debug("Got message");
     switch (mdp_msg_id(message)) {
         case MDP_MSG_CLIENT_REQUEST:
             return client_request_event;
@@ -411,10 +411,8 @@ s_client_execute(s_client_t *self, event_t event) {
         self->next_event = NULL_event;
         self->exception = NULL_event;
         if (self->server->verbose) {
-            zsys_debug("%s: %s:",
-                       self->log_prefix, s_state_name[self->state]);
-            zsys_debug("%s:     %s",
-                       self->log_prefix, s_event_name[self->event]);
+            //zsys_debug("%s: %s:",self->log_prefix, s_state_name[self->state]);
+            //zsys_debug("%s:     %s",self->log_prefix, s_event_name[self->event]);
         }
         switch (self->state) {
             case start_state:
@@ -422,8 +420,8 @@ s_client_execute(s_client_t *self, event_t event) {
                     if (!self->exception) {
                         //  reset timeouts
                         if (self->server->verbose)
-                            zsys_debug("%s:         $ reset timeouts", self->log_prefix);
-                        reset_timeouts(&self->client);
+                            //zsys_debug("%s:         $ reset timeouts", self->log_prefix);
+                            reset_timeouts(&self->client);
                     }
                     if (!self->exception) {
                         //  handle ready
@@ -434,8 +432,8 @@ s_client_execute(s_client_t *self, event_t event) {
                     if (!self->exception) {
                         //  handle set wakeup
                         if (self->server->verbose)
-                            zsys_debug("%s:         $ handle set wakeup", self->log_prefix);
-                        handle_set_wakeup(&self->client);
+                            // zsys_debug("%s:         $ handle set wakeup", self->log_prefix);
+                            handle_set_wakeup(&self->client);
                     }
                 } else if (self->event == client_request_event) {
                     if (!self->exception) {
@@ -448,8 +446,8 @@ s_client_execute(s_client_t *self, event_t event) {
                     if (!self->exception) {
                         //  reset timeouts
                         if (self->server->verbose)
-                            zsys_debug("%s:         $ reset timeouts", self->log_prefix);
-                        reset_timeouts(&self->client);
+                            // zsys_debug("%s:         $ reset timeouts", self->log_prefix);
+                            reset_timeouts(&self->client);
                     }
                     if (!self->exception) {
                         //  handle worker partial
@@ -467,49 +465,48 @@ s_client_execute(s_client_t *self, event_t event) {
                     if (!self->exception) {
                         //  handle worker final
                         if (self->server->verbose)
-                            zsys_debug("%s:         $ handle worker final", self->log_prefix);
-                        handle_worker_final(&self->client);
+                            // zsys_debug("%s:         $ handle worker final", self->log_prefix);
+                            handle_worker_final(&self->client);
                     }
                     if (!self->exception) {
                         //  handle set wakeup
                         if (self->server->verbose)
-                            zsys_debug("%s:         $ handle set wakeup", self->log_prefix);
-                        handle_set_wakeup(&self->client);
+                            // zsys_debug("%s:         $ handle set wakeup", self->log_prefix);
+                            handle_set_wakeup(&self->client);
                     }
                 } else if (self->event == send_heartbeat_event) {
                     if (!self->exception) {
                         //  send HEARTBEAT
                         if (self->server->verbose)
-                            zsys_debug("%s:         $ send HEARTBEAT",
-                                       self->log_prefix);
-                        mdp_msg_set_id(self->server->message, MDP_MSG_HEARTBEAT);
+                            //  zsys_debug("%s:         $ send HEARTBEAT",self->log_prefix);
+                            mdp_msg_set_id(self->server->message, MDP_MSG_HEARTBEAT);
                         mdp_msg_set_routing_id(self->server->message, self->routing_id);
                         mdp_msg_send(self->server->message, self->server->router);
                     }
                     if (!self->exception) {
                         //  check timeouts
                         if (self->server->verbose)
-                            zsys_debug("%s:         $ check timeouts", self->log_prefix);
-                        check_timeouts(&self->client);
+                            //zsys_debug("%s:         $ check timeouts", self->log_prefix);
+                            check_timeouts(&self->client);
                     }
                     if (!self->exception) {
                         //  handle set wakeup
                         if (self->server->verbose)
-                            zsys_debug("%s:         $ handle set wakeup", self->log_prefix);
-                        handle_set_wakeup(&self->client);
+                            // zsys_debug("%s:         $ handle set wakeup", self->log_prefix);
+                            handle_set_wakeup(&self->client);
                     }
                 } else if (self->event == heartbeat_event) {
                     if (!self->exception) {
                         //  reset timeouts
                         if (self->server->verbose)
-                            zsys_debug("%s:         $ reset timeouts", self->log_prefix);
-                        reset_timeouts(&self->client);
+                            // zsys_debug("%s:         $ reset timeouts", self->log_prefix);
+                            reset_timeouts(&self->client);
                     }
                     if (!self->exception) {
                         //  handle set wakeup
                         if (self->server->verbose)
-                            zsys_debug("%s:         $ handle set wakeup", self->log_prefix);
-                        handle_set_wakeup(&self->client);
+                            //  zsys_debug("%s:         $ handle set wakeup", self->log_prefix);
+                            handle_set_wakeup(&self->client);
                     }
                 } else if (self->event == disconnect_event) {
                     if (!self->exception) {
@@ -567,9 +564,9 @@ s_client_execute(s_client_t *self, event_t event) {
             //  Automatically calls s_client_destroy
             zhash_delete(self->server->clients, self->hashkey);
             break;
-        } else if (self->server->verbose)
-            zsys_debug("%s:         > %s",
-                       self->log_prefix, s_state_name[self->state]);
+        } else if (self->server->verbose) {
+            //zsys_debug("%s:         > %s",                       self->log_prefix, s_state_name[self->state]);
+        }
     }
 }
 

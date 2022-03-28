@@ -106,13 +106,19 @@ static int s_encrypt_body(zmsg_t *body, unsigned char *key) {
         // add the "canary" frame
         char *canary = "BB_MDP_SECURE";
         unsigned char *data_encrypted = (unsigned char *) zmalloc(strlen(canary) + crypto_secretbox_MACBYTES);
-        crypto_secretbox_easy(data_encrypted, (unsigned char *) canary,
-                              strlen(canary),
-                              nonce, key);
-        zmsg_addmem(body, data_encrypted, strlen(canary) + crypto_secretbox_MACBYTES);
+        if (0 == crypto_secretbox_easy(data_encrypted, (unsigned char *) canary,
+                                       strlen(canary),
+                                       nonce, key)) {
+            zmsg_addmem(body, data_encrypted, strlen(canary) + crypto_secretbox_MACBYTES);
+            zsys_debug("WORKER: Canary added");
+        } else {
+            zsys_debug("WORKER: Failed to encrypt/add canary frame");
+            if (data_encrypted) {
+                free(data_encrypted);
+            }
+            return -1;
+        }
         free(data_encrypted);
-
-
         return 0;
     }
     return -1;
