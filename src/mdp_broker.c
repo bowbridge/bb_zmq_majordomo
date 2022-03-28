@@ -98,7 +98,7 @@ typedef struct {
 #define MAX_TIMEOUTS 3
 
 // Interval for sending heartbeat [ms]
-#define HEARTBEAT_DELAY 1000
+#define HEARTBEAT_DELAY 2500
 
 static void s_service_destroy(void *argument);
 
