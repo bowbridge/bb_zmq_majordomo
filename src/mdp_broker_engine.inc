@@ -338,7 +338,7 @@ s_protocol_event(mdp_msg_t *message) {
             return disconnect_event;
             break;
         default:
-            //  Invalid mdp_msg_t
+            zsys_warning("Invalid mdp_msg_t");
             return terminate_event;
     }
 }

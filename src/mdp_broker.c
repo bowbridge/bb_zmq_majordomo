@@ -111,9 +111,9 @@ static void s_worker_destroy(void *argument);
 
 static void s_worker_delete(worker_t *self, int disconnect);
 
-static int s_encrypt_body(zmsg_t *body, unsigned char *key);
+static int s_broker_encrypt_body(zmsg_t *body, unsigned char *key);
 
-static int s_decrypt_body(zmsg_t *body, unsigned char *key);
+static int s_broker_decrypt_body(zmsg_t *body, unsigned char *key);
 
 static worker_t *
 s_worker_require(server_t *self, zframe_t *address) {
@@ -201,7 +201,7 @@ s_service_dispatch(service_t *self) {
         zframe_t *address = zframe_dup(mdp_msg_routing_id(msg));
         mdp_msg_set_address(worker_msg, &address);
         zmsg_t *body = mdp_msg_get_body(msg);
-        s_encrypt_body(body, worker->session_key_tx);
+        s_broker_encrypt_body(body, worker->session_key_tx);
 
         mdp_msg_set_body(worker_msg, &body);
 
@@ -364,7 +364,7 @@ handle_mmi(client_t *self, const char *service_name) {
     mdp_msg_destroy(&client_msg);
 }
 
-static int s_encrypt_body(zmsg_t *body, unsigned char *key) {
+static int s_broker_encrypt_body(zmsg_t *body, unsigned char *key) {
     if (NULL != body && NULL != key) {
         // encrypt the original body - frame by frame
         int num_frames = (int) zmsg_size(body);
@@ -423,7 +423,7 @@ static int s_encrypt_body(zmsg_t *body, unsigned char *key) {
     return 0;
 }
 
-static int s_decrypt_body(zmsg_t *body, unsigned char *key) {
+static int s_broker_decrypt_body(zmsg_t *body, unsigned char *key) {
     if (NULL != body && NULL != key) {
         // decrypt the body, frame by frame
         unsigned char nonce[crypto_secretbox_NONCEBYTES];
@@ -540,7 +540,7 @@ handle_request(client_t *self) {
                 zframe_destroy(&f);
 
                 // decrypt the body, frame by frame
-                if (0 != s_decrypt_body(body, self->session_key_rx)) {
+                if (0 != s_broker_decrypt_body(body, self->session_key_rx)) {
                     zsys_error("BROKER: Decryption error");
                     zmsg_destroy(&body);
                     return;
@@ -585,7 +585,7 @@ handle_worker_partial(client_t *self) {
                         (worker_t *) zhash_lookup(self->server->workers, identity);
                 free(identity);
                 if (worker) {
-                    if (0 != s_decrypt_body(body, worker->session_key_rx)) {
+                    if (0 != s_broker_decrypt_body(body, worker->session_key_rx)) {
                         zsys_error("BROKER: Decryption Error");
                         zmsg_destroy(&body);
                         return;
@@ -596,7 +596,7 @@ handle_worker_partial(client_t *self) {
                 char *hashkey = zframe_strhex(address);
                 s_client_t *client = (s_client_t *) zhash_lookup(self->server->clients, hashkey);
                 free(hashkey);
-                s_encrypt_body(body, client->client.session_key_tx);
+                s_broker_encrypt_body(body, client->client.session_key_tx);
             }
             zframe_destroy(&frame);
         }
@@ -636,7 +636,7 @@ handle_worker_final(client_t *self) {
             if (frame) {
                 if (zframe_streq(frame, "BB_MDP_SECURE")) {
                     // Get the worker's keys
-                    if (0 != s_decrypt_body(body, worker->session_key_rx)) {
+                    if (0 != s_broker_decrypt_body(body, worker->session_key_rx)) {
                         zsys_error("BROKER: Decryption error");
                         zmsg_destroy(&body);
                         return;
@@ -646,7 +646,7 @@ handle_worker_final(client_t *self) {
                     char *hashkey = zframe_strhex(address);
                     s_client_t *client = (s_client_t *) zhash_lookup(self->server->clients, hashkey);
                     free(hashkey);
-                    s_encrypt_body(body, client->client.session_key_tx);
+                    s_broker_encrypt_body(body, client->client.session_key_tx);
                 }
                 zframe_destroy(&frame);
             }

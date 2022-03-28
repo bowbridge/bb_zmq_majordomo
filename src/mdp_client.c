@@ -248,7 +248,7 @@ disconnect_from_broker(client_t *self) {
 
 }
 
-static int s_decrypt_body(zmsg_t *body, unsigned char *key) {
+static int s_client_decrypt_body(zmsg_t *body, unsigned char *key) {
     //decrypt frames one by one
     int i;
     unsigned char nonce[crypto_secretbox_NONCEBYTES];
@@ -320,7 +320,7 @@ send_partial_response(client_t *self) {
     if (frame) {
         if (zframe_streq(frame, "BB_MDP_SECURE")) {
             zsys_debug("Encrypted message");
-            s_decrypt_body(body, self->session_key_rx);
+            s_client_decrypt_body(body, self->session_key_rx);
         } else if (zframe_streq(frame, "BB_MDP_PLAIN")) {
             zsys_debug("Plain message");
         } else {
@@ -347,7 +347,7 @@ send_final_response(client_t *self) {
     if (frame) {
         if (zframe_streq(frame, "BB_MDP_SECURE")) {
             zsys_debug("Encrypted message");
-            s_decrypt_body(body, self->session_key_rx);
+            s_client_decrypt_body(body, self->session_key_rx);
         } else if (zframe_streq(frame, "BB_MDP_PLAIN")) {
             zsys_debug("Plain message");
         } else {

@@ -59,7 +59,7 @@ typedef struct {
 // Interval for sending heartbeat [ms]
 #define HEARTBEAT_DELAY 1000
 
-static int s_encrypt_body(zmsg_t *body, unsigned char *key) {
+static int s_worker_encrypt_body(zmsg_t *body, unsigned char *key) {
     if (NULL != body && NULL != key) {
         // encrypt the original body - frame by frame
         int num_frames = (int) zmsg_size(body);
@@ -124,7 +124,7 @@ static int s_encrypt_body(zmsg_t *body, unsigned char *key) {
     return -1;
 }
 
-static int s_decrypt_body(zmsg_t *body, unsigned char *key) {
+static int s_worker_decrypt_body(zmsg_t *body, unsigned char *key) {
     if (NULL != body && NULL != key) {
         // decrypt the body, frame by frame
         unsigned char nonce[crypto_secretbox_NONCEBYTES];
@@ -275,7 +275,7 @@ signal_request(client_t *self) {
     zframe_t *frame = zmsg_pop(body);
     if (frame) {
         if (zframe_streq(frame, "BB_MDP_SECURE")) {
-            s_decrypt_body(body, self->session_key_rx);
+            s_worker_decrypt_body(body, self->session_key_rx);
         }
     }
 
@@ -385,7 +385,7 @@ prepare_partial_response(client_t *self) {
     mdp_worker_msg_set_address(msg, &self->args->address);
     // Encrypt the body if we need to
     if (NULL != self->session_key_tx) {
-        s_encrypt_body(self->args->reply_body, self->session_key_tx);
+        s_worker_encrypt_body(self->args->reply_body, self->session_key_tx);
     } else {
         zmsg_pushstr(self->args->reply_body, "BB_MDP_PLAIN");
     }
@@ -403,7 +403,7 @@ prepare_final_response(client_t *self) {
     mdp_worker_msg_set_address(msg, &self->args->address);
     // Encrypt the body if we need to
     if (NULL != self->session_key_tx) {
-        s_encrypt_body(self->args->reply_body, self->session_key_tx);
+        s_worker_encrypt_body(self->args->reply_body, self->session_key_tx);
     } else {
         zmsg_pushstr(self->args->reply_body, "BB_MDP_PLAIN");
     }
