@@ -748,9 +748,9 @@ s_server_handle_pipe(zloop_t *loop, zsock_t *reader, void *argument) {
     if (!msg)
         return -1;              //  Interrupted; exit zloop
     char *method = zmsg_popstr(msg);
-    if (self->verbose)
+    if (self->verbose) {
         zsys_debug("%s:     API command=%s", self->log_prefix, method);
-
+    }
     if (streq (method, "VERBOSE"))
         self->verbose = true;
     else if (streq (method, "$TERM")) {

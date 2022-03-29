@@ -211,13 +211,14 @@ client_terminate(client_t *self) {
 void
 mdp_worker_test(bool verbose) {
     printf(" * mdp_worker: ");
-    if (verbose)
+    if (verbose) {
         printf("\n");
-
+    }
     //  @selftest
     zactor_t *client = zactor_new(mdp_worker, NULL);
-    if (verbose)
+    if (verbose) {
         zstr_send(client, "VERBOSE");
+    }
     zactor_destroy(&client);
     //  @end
     printf("OK\n");

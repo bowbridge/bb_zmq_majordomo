@@ -358,41 +358,38 @@ s_client_execute(s_client_t *self, event_t event) {
                 if (self->event == constructor_event) {
                     if (!self->exception) {
                         //  connect to server
-                        if (mdp_worker_verbose)
+                        if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ connect to server");
+                        }
                         connect_to_server(&self->client);
                     }
                     if (!self->exception) {
                         //  prepare ready message
-                        if (mdp_worker_verbose)
+                        if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ prepare ready message");
+                        }
                         prepare_ready_message(&self->client);
                     }
                     if (!self->exception) {
                         //  send READY
-                        if (mdp_worker_verbose)
+                        if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ send READY");
+                        }
                         mdp_worker_msg_set_id(self->message, MDP_WORKER_MSG_READY);
-                        /* // Explicitly set a routing ID
-                         size_t id_strlen = strlen(self->client.service) + 17;
-                         char *id_str = (char *) zmalloc(id_strlen);
-                         snprintf(id_str, id_strlen, "%s_", self->client.service);
-                         randombytes((unsigned char *) id_str + strlen(self->client.service) + 1, 16);
-                         zframe_t *addr_frame = zframe_new(id_str, id_strlen);
-                         mdp_worker_msg_set_address(self->message, &addr_frame);
-                         mdp_worker_msg_print(self->message); */
                         mdp_worker_msg_send(self->message, self->dealer);
                     }
                     if (!self->exception) {
                         //  handle set wakeup
-                        if (mdp_worker_verbose)
+                        if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ handle set wakeup");
+                        }
                         handle_set_wakeup(&self->client);
                     }
                     if (!self->exception) {
                         //  signal connection success
-                        if (mdp_worker_verbose)
+                        if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ signal connection success");
+                        }
                         signal_connection_success(&self->client);
                     }
                     if (!self->exception)
@@ -400,15 +397,17 @@ s_client_execute(s_client_t *self, event_t event) {
                 } else if (self->event == connect_error_event) {
                     if (!self->exception) {
                         //  handle connect error
-                        if (mdp_worker_verbose)
+                        if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ handle connect error");
+                        }
                         handle_connect_error(&self->client);
                     }
                 } else if (self->event == destructor_event) {
                     if (!self->exception) {
                         //  destroy worker
-                        if (mdp_worker_verbose)
+                        if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ destroy worker");
+                        }
                         destroy_worker(&self->client);
                     }
                 } else if (self->event == heartbeat_event) {
@@ -421,16 +420,18 @@ s_client_execute(s_client_t *self, event_t event) {
                 } else if (self->event == set_verbose_event) {
                     if (!self->exception) {
                         //  handle set verbose
-                        if (mdp_worker_verbose)
+                        if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ handle set verbose");
+                        }
                         handle_set_verbose(&self->client);
                     }
                 } else {
                     //  Handle unexpected protocol events
                     if (!self->exception) {
                         //  log protocol error
-                        if (mdp_worker_verbose)
+                        if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ log protocol error");
+                        }
                         log_protocol_error(&self->client);
                     }
                 }
@@ -440,8 +441,9 @@ s_client_execute(s_client_t *self, event_t event) {
                 if (self->event == worker_request_event) {
                     if (!self->exception) {
                         //  signal request
-                        if (mdp_worker_verbose)
+                        if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ signal request");
+                        }
                         signal_request(&self->client);
                     }
                     if (!self->exception)
@@ -449,56 +451,64 @@ s_client_execute(s_client_t *self, event_t event) {
                 } else if (self->event == send_heartbeat_event) {
                     if (!self->exception) {
                         //  check timeouts
-                        if (mdp_worker_verbose)
+                        if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ check timeouts");
+                        }
                         check_timeouts(&self->client);
                     }
                     if (!self->exception) {
                         //  send HEARTBEAT
-                        if (mdp_worker_verbose)
+                        if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ send HEARTBEAT");
+                        }
                         mdp_worker_msg_set_id(self->message, MDP_WORKER_MSG_HEARTBEAT);
                         mdp_worker_msg_send(self->message, self->dealer);
                     }
                     if (!self->exception) {
                         //  handle set wakeup
-                        if (mdp_worker_verbose)
+                        if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ handle set wakeup");
+                        }
                         handle_set_wakeup(&self->client);
                     }
                 } else if (self->event == heartbeat_event) {
                     if (!self->exception) {
                         //  reset timeouts
-                        if (mdp_worker_verbose)
+                        if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ reset timeouts");
+                        }
                         reset_timeouts(&self->client);
                     }
                     if (!self->exception) {
                         //  handle set wakeup
-                        if (mdp_worker_verbose)
+                        if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ handle set wakeup");
+                        }
                         handle_set_wakeup(&self->client);
                     }
                 } else if (self->event == destructor_event) {
                     if (!self->exception) {
                         //  destroy worker
-                        if (mdp_worker_verbose)
+                        if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ destroy worker");
+                        }
                         destroy_worker(&self->client);
                     }
                 } else if (self->event == set_verbose_event) {
                     if (!self->exception) {
                         //  handle set verbose
-                        if (mdp_worker_verbose)
+                        if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ handle set verbose");
+                        }
                         handle_set_verbose(&self->client);
                     }
                 } else {
                     //  Handle unexpected protocol events
                     if (!self->exception) {
                         //  log protocol error
-                        if (mdp_worker_verbose)
+                        if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ log protocol error");
+                        }
                         log_protocol_error(&self->client);
                     }
                 }
@@ -508,35 +518,40 @@ s_client_execute(s_client_t *self, event_t event) {
                 if (self->event == send_partial_event) {
                     if (!self->exception) {
                         //  prepare partial response
-                        if (mdp_worker_verbose)
+                        if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ prepare partial response");
+                        }
                         prepare_partial_response(&self->client);
                     }
                     if (!self->exception) {
                         //  send WORKER_PARTIAL
-                        if (mdp_worker_verbose)
+                        if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ send WORKER_PARTIAL");
+                        }
                         mdp_worker_msg_set_id(self->message, MDP_WORKER_MSG_WORKER_PARTIAL);
                         mdp_worker_msg_send(self->message, self->dealer);
                     }
                 } else if (self->event == send_final_event) {
                     if (!self->exception) {
                         //  prepare final response
-                        if (mdp_worker_verbose)
+                        if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ prepare final response");
+                        }
                         prepare_final_response(&self->client);
                     }
                     if (!self->exception) {
                         //  send WORKER_FINAL
-                        if (mdp_worker_verbose)
+                        if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ send WORKER_FINAL");
+                        }
                         mdp_worker_msg_set_id(self->message, MDP_WORKER_MSG_WORKER_FINAL);
                         mdp_worker_msg_send(self->message, self->dealer);
                     }
                     if (!self->exception) {
                         //  handle set wakeup
-                        if (mdp_worker_verbose)
+                        if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ handle set wakeup");
+                        }
                         handle_set_wakeup(&self->client);
                     }
                     if (!self->exception)
@@ -544,30 +559,34 @@ s_client_execute(s_client_t *self, event_t event) {
                 } else if (self->event == destructor_event) {
                     if (!self->exception) {
                         //  destroy worker
-                        if (mdp_worker_verbose)
+                        if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ destroy worker");
+                        }
                         destroy_worker(&self->client);
                     }
                 } else if (self->event == heartbeat_event) {
                     if (!self->exception) {
                         //  received heartbeat
-                        if (mdp_worker_verbose)
+                        if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ received heartbeat");
+                        }
                         received_heartbeat(&self->client);
                     }
                 } else if (self->event == set_verbose_event) {
                     if (!self->exception) {
                         //  handle set verbose
-                        if (mdp_worker_verbose)
+                        if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ handle set verbose");
+                        }
                         handle_set_verbose(&self->client);
                     }
                 } else {
                     //  Handle unexpected protocol events
                     if (!self->exception) {
                         //  log protocol error
-                        if (mdp_worker_verbose)
+                        if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ log protocol error");
+                        }
                         log_protocol_error(&self->client);
                     }
                 }
@@ -577,30 +596,34 @@ s_client_execute(s_client_t *self, event_t event) {
                 if (self->event == destructor_event) {
                     if (!self->exception) {
                         //  destroy worker
-                        if (mdp_worker_verbose)
+                        if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ destroy worker");
+                        }
                         destroy_worker(&self->client);
                     }
                 } else if (self->event == heartbeat_event) {
                     if (!self->exception) {
                         //  received heartbeat
-                        if (mdp_worker_verbose)
+                        if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ received heartbeat");
+                        }
                         received_heartbeat(&self->client);
                     }
                 } else if (self->event == set_verbose_event) {
                     if (!self->exception) {
                         //  handle set verbose
-                        if (mdp_worker_verbose)
+                        if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ handle set verbose");
+                        }
                         handle_set_verbose(&self->client);
                     }
                 } else {
                     //  Handle unexpected protocol events
                     if (!self->exception) {
                         //  log protocol error
-                        if (mdp_worker_verbose)
+                        if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ log protocol error");
+                        }
                         log_protocol_error(&self->client);
                     }
                 }
@@ -608,11 +631,13 @@ s_client_execute(s_client_t *self, event_t event) {
         }
         //  If we had an exception event, interrupt normal programming
         if (self->exception) {
-            if (mdp_worker_verbose)
+            if (mdp_worker_verbose) {
                 zsys_debug("mdp_worker:            ! %s", s_event_name[self->exception]);
+            }
             self->next_event = self->exception;
-        } else if (mdp_worker_verbose)
+        } else if (mdp_worker_verbose) {
             zsys_debug("mdp_worker:            > %s", s_state_name[self->state]);
+        }
     }
 }
 
@@ -634,8 +659,9 @@ s_client_handle_cmdpipe(zloop_t *loop, zsock_t *reader, void *argument) {
     char *method = zstr_recv(self->cmdpipe);
     if (!method)
         return -1;                  //  Interrupted; exit zloop
-    if (mdp_worker_verbose)
+    if (mdp_worker_verbose) {
         zsys_debug("mdp_worker:        API command=%s", method);
+    }
 
     if (streq (method, "$TERM"))
         self->terminated = true;    //  Shutdown the engine
@@ -686,8 +712,9 @@ s_client_handle_msgpipe(zloop_t *loop, zsock_t *reader, void *argument) {
         char *method = zstr_recv(self->msgpipe);
         if (!method)
             return -1;              //  Interrupted; exit zloop
-        if (mdp_worker_verbose)
+        if (mdp_worker_verbose) {
             zsys_debug("mdp_worker:        API message=%s", method);
+        }
 
         //  Front-end shuts down msgpipe before cmdpipe, this little
         //  handshake just ensures all traffic on the msgpipe has been
