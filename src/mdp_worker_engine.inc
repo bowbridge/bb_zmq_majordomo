@@ -373,14 +373,14 @@ s_client_execute(s_client_t *self, event_t event) {
                         if (mdp_worker_verbose)
                             zsys_debug("mdp_worker:            $ send READY");
                         mdp_worker_msg_set_id(self->message, MDP_WORKER_MSG_READY);
-                        // Explicitly set a routing ID
-                        size_t id_strlen = strlen(self->client.service) + 17;
-                        char *id_str = (char *) zmalloc(id_strlen);
-                        snprintf(id_str, id_strlen, "%s_", self->client.service);
-                        randombytes((unsigned char *) id_str + strlen(self->client.service) + 1, 16);
-                        zframe_t *addr_frame = zframe_new(id_str, id_strlen);
-                        mdp_worker_msg_set_address(self->message, &addr_frame);
-                        mdp_worker_msg_print(self->message);
+                        /* // Explicitly set a routing ID
+                         size_t id_strlen = strlen(self->client.service) + 17;
+                         char *id_str = (char *) zmalloc(id_strlen);
+                         snprintf(id_str, id_strlen, "%s_", self->client.service);
+                         randombytes((unsigned char *) id_str + strlen(self->client.service) + 1, 16);
+                         zframe_t *addr_frame = zframe_new(id_str, id_strlen);
+                         mdp_worker_msg_set_address(self->message, &addr_frame);
+                         mdp_worker_msg_print(self->message); */
                         mdp_worker_msg_send(self->message, self->dealer);
                     }
                     if (!self->exception) {
