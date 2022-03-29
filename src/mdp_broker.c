@@ -805,6 +805,7 @@ static void
 check_timeouts(client_t *self) {
     self->timeouts++;
     if (self->timeouts == MAX_TIMEOUTS) {
+        zsys_debug("Heartbeat timeout for worker for service %s ", self->service_name);
         engine_set_exception(self, terminate_event);
     }
 }
