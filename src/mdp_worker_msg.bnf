@@ -9,6 +9,7 @@ The following ABNF grammar defines the Majordomo Worker Protocol:
     version         = string                ; MDP/Worker v0.2
     messageid       = number-1              ; PARTIAL message id
     service         = string                ; Service name
+    body            = msg                   ; Key Exchange (optional)
 
     ;  Broker sends a request from a client.                                 
 

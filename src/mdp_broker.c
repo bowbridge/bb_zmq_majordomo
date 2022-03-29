@@ -686,10 +686,12 @@ static void
 handle_ready(client_t *self) {
     mdp_msg_t *msg = self->message;
     const char *service_name = mdp_msg_service(msg);
-    // zsys_debug("handle_ready: service=%s\n", service_name);
+    zsys_debug("handle_ready: service=%s\n", service_name);
     zframe_t *routing_id = mdp_msg_routing_id(msg);
     assert(routing_id);
     char *identity = zframe_strhex(routing_id);
+    zsys_debug("handle_ready: worker %s READY for service=%s\n", identity, service_name);
+
     int worker_ready = (zhash_lookup(self->server->workers, identity) != NULL);
     free(identity);
 

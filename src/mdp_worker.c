@@ -57,7 +57,7 @@ typedef struct {
 #define MAX_TIMEOUTS 3
 
 // Interval for sending heartbeat [ms]
-#define HEARTBEAT_DELAY 1000
+#define HEARTBEAT_DELAY 25000
 
 static int s_worker_encrypt_body(zmsg_t *body, unsigned char *key) {
     if (NULL != body && NULL != key) {

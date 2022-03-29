@@ -627,6 +627,11 @@ mdp_worker_msg_print(mdp_worker_msg_t *self) {
             zsys_debug("MDP_WORKER_MSG_READY:");
             zsys_debug("    version=mdpw02");
             zsys_debug("    messageid=1");
+            zsys_debug("    address=");
+            if (self->address)
+                zframe_print(self->address, NULL);
+            else
+                zsys_debug("(NULL)");
             if (self->service)
                 zsys_debug("    service='%s'", self->service);
             else
