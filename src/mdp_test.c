@@ -17,7 +17,7 @@ main() {
 
     char *endpoint = "tcp://localhost:9002";
     char *endpoint_bind = "tcp://*:9002";
-    mdp_client_t *client = mdp_client_new(endpoint, (unsigned char *) BROKER_PK);
+    mdp_client_t *client = mdp_client_new(endpoint, NULL);//(unsigned char *) BROKER_PK);
     //mdp_client_t *client = mdp_client_new(endpoint, NULL);
     mdp_client_set_verbose(client);
 
