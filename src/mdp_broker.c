@@ -204,7 +204,7 @@ s_service_dispatch(service_t *self) {
         s_broker_encrypt_body(body, worker->session_key_tx);
 
         mdp_msg_set_body(worker_msg, &body);
-
+        zsys_debug("BROKER: Dispatching request to worker %s", worker->identity);
         mdp_msg_send(worker_msg, self->broker->router);
         mdp_msg_destroy(&worker_msg);
         mdp_msg_destroy(&msg);
@@ -802,11 +802,12 @@ delete_worker(client_t *self) {
 //  check_timeouts
 //
 
-static void
+static int
 check_timeouts(client_t *self) {
     self->timeouts++;
     if (self->timeouts == MAX_TIMEOUTS) {
-        zsys_debug("Heartbeat timeout for worker for service %s ", self->service_name);
         engine_set_exception(self, terminate_event);
+        return -1;
     }
+    return 0;
 }

@@ -105,14 +105,14 @@ main() {
 
     }
 
+    printf("Press Enter to stop the worker");
+    getchar();
+    mdp_worker_destroy(&worker);
 
     printf("Press Enter to stop the client");
     getchar();
     mdp_client_destroy(&client);
 
-    printf("Press Enter to stop the worker");
-    getchar();
-    mdp_worker_destroy(&worker);
 
     printf("Press Enter to stop the broker");
     getchar();

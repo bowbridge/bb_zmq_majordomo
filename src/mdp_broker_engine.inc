@@ -146,7 +146,7 @@ handle_worker_partial(client_t *self);
 static void
 handle_worker_final(client_t *self);
 
-static void
+static int
 check_timeouts(client_t *self);
 
 static void
@@ -498,7 +498,14 @@ s_client_execute(s_client_t *self, event_t event) {
                         if (self->server->verbose) {
                             //zsys_debug("%s:         $ check timeouts", self->log_prefix);
                         }
-                        check_timeouts(&self->client);
+                        if (check_timeouts(&self->client) != 0) {
+                            mdp_msg_t *msg = self->server->message;
+                            zframe_t *routing_id = mdp_msg_routing_id(msg);
+                            assert(routing_id);
+                            char *identity = zframe_strhex(routing_id);
+                            zsys_debug("BROKER: Worker %s for service %s timed out", identity,
+                                       self->client.service_name);
+                        }
                     }
                     if (!self->exception) {
                         //  handle set wakeup
@@ -577,7 +584,6 @@ s_client_execute(s_client_t *self, event_t event) {
                 zsys_debug("%s:         ! %s",
                            self->log_prefix, s_event_name[self->exception]);
             }
-
             self->next_event = self->exception;
         }
         if (self->next_event == terminate_event) {
