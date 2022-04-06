@@ -161,9 +161,11 @@ s_worker_delete(worker_t *self, int disconnect) {
     }
 
     if (self->service) {
+        zsys_debug("Deleting worker %s from service list", self->identity);
         zlist_remove(self->service->waiting, self);
         self->service->workers--;
     }
+    zsys_debug("Deleting worker %s from broker's waiting list", self->identity);
     zlist_remove(self->broker->waiting, self);
     // This implicitly calls s_worker_destroy.
     zhash_delete(self->broker->workers, self->identity);
