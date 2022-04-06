@@ -591,13 +591,13 @@ handle_worker_partial(client_t *self) {
                         return;
                     }
                 }
-
-                // get the client's key
-                char *hashkey = zframe_strhex(address);
-                s_client_t *client = (s_client_t *) zhash_lookup(self->server->clients, hashkey);
-                free(hashkey);
-                s_broker_encrypt_body(body, client->client.session_key_tx);
             }
+            // get the client's key
+            char *hashkey = zframe_strhex(address);
+            s_client_t *client = (s_client_t *) zhash_lookup(self->server->clients, hashkey);
+            free(hashkey);
+            s_broker_encrypt_body(body, client->client.session_key_tx);
+
             zframe_destroy(&frame);
         }
         mdp_msg_set_body(client_msg, &body);
@@ -641,15 +641,16 @@ handle_worker_final(client_t *self) {
                         zmsg_destroy(&body);
                         return;
                     }
-
-                    // get the client's key
-                    char *hashkey = zframe_strhex(address);
-                    s_client_t *client = (s_client_t *) zhash_lookup(self->server->clients, hashkey);
-                    free(hashkey);
-                    s_broker_encrypt_body(body, client->client.session_key_tx);
                 }
-                zframe_destroy(&frame);
+
+                // get the client's key
+                char *hashkey = zframe_strhex(address);
+                s_client_t *client = (s_client_t *) zhash_lookup(self->server->clients, hashkey);
+                free(hashkey);
+                s_broker_encrypt_body(body, client->client.session_key_tx);
             }
+            zframe_destroy(&frame);
+
         }
 
         mdp_msg_set_body(client_msg, &body);

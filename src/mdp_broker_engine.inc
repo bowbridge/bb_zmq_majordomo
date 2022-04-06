@@ -564,7 +564,7 @@ s_client_execute(s_client_t *self, event_t event) {
                     if (!self->exception) {
                         //  terminate
                         if (self->server->verbose) {
-                            zsys_debug("%s:         $ terminate", self->log_prefix);
+                            zsys_debug("%s:         $ terminate (unexpected protocol event)", self->log_prefix);
                         }
                         self->next_event = terminate_event;
                     }

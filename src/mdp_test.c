@@ -30,7 +30,8 @@ main() {
     sleep(1);
 
     char *service = "MAKE COFFEE";
-    mdp_worker_t *worker = mdp_worker_new(endpoint, service, (unsigned char *) WORKER_PK, (unsigned char *) BROKER_PK);
+    mdp_worker_t *worker = mdp_worker_new(endpoint, service, NULL,
+                                          NULL);//(unsigned char *) WORKER_PK, (unsigned char *) BROKER_PK);
 
     assert(worker);
 

@@ -413,8 +413,9 @@ s_client_execute(s_client_t *self, event_t event) {
                 } else if (self->event == heartbeat_event) {
                     if (!self->exception) {
                         //  received heartbeat
-                        if (mdp_worker_verbose)
+                        if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ received heartbeat");
+                        }
                         received_heartbeat(&self->client);
                     }
                 } else if (self->event == set_verbose_event) {
@@ -670,6 +671,13 @@ s_client_handle_cmdpipe(zloop_t *loop, zsock_t *reader, void *argument) {
         zstr_free(&self->args.service);
         zsock_recv(self->cmdpipe, "ssss", &self->args.endpoint, &self->args.service, &self->client.auth_key,
                    &self->client.broker_pk);
+        if (0 == strlen((char *) self->client.auth_key)) {
+            self->client.auth_key = NULL;
+        }
+        if (0 == strlen((char *) self->client.broker_pk)) {
+            self->client.broker_pk = NULL;
+        }
+
         s_client_execute(self, constructor_event);
     } else if (streq (method, "DESTRUCTOR")) {
         s_client_execute(self, destructor_event);
@@ -926,7 +934,11 @@ static uint8_t
 mdp_worker_constructor(mdp_worker_t *self, const char *endpoint, const char *service, unsigned const char *auth_key,
                        unsigned const char *broker_pk) {
     assert (self);
-    zsock_send(self->actor, "sssss", "CONSTRUCTOR", endpoint, service, auth_key, broker_pk);
+    if (NULL != auth_key && NULL == broker_pk) {
+        zsock_send(self->actor, "sssss", "CONSTRUCTOR", endpoint, service, auth_key, broker_pk);
+    } else {
+        zsock_send(self->actor, "sssss", "CONSTRUCTOR", endpoint, service, "", "");
+    }
     if (s_accept_reply(self, "SUCCESS", "FAILURE", NULL))
         return -1;              //  Interrupted or timed-out
     return self->status;

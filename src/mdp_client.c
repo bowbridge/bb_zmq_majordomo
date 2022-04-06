@@ -135,7 +135,7 @@ send_request_to_broker(client_t *self) {
             // generate an ephemeral keypair for the key exchange
             int res = crypto_kx_keypair(self->client_pk, self->client_sk);
             if (0 != res) {
-                zsys_error("Failed to generate Public/private key pair");
+                zsys_error("Failed to generate public/private key pair");
                 free(self->client_pk);
                 self->client_pk = NULL;
                 free(self->client_sk);
