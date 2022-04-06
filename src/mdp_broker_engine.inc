@@ -372,6 +372,7 @@ s_client_new(s_server_t *server, zframe_t *routing_id) {
 static void
 s_client_destroy(s_client_t **self_p) {
     assert (self_p);
+
     if (*self_p) {
         s_client_t *self = *self_p;
         if (self->wakeup)
@@ -385,6 +386,8 @@ s_client_destroy(s_client_t **self_p) {
         free(self->hashkey);
         free(self);
         *self_p = NULL;
+    } else {
+        zsys_error("BROKER: Invalid pointer to client");
     }
 }
 
@@ -505,6 +508,7 @@ s_client_execute(s_client_t *self, event_t event) {
                             char *identity = zframe_strhex(routing_id);
                             zsys_debug("BROKER: Worker %s for service %s timed out", identity,
                                        self->client.service_name);
+                            delete_worker(&self->client);
                         }
                     }
                     if (!self->exception) {
