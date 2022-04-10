@@ -94,7 +94,7 @@ static void
 connect_to_server(client_t *self) {
     if (zsock_connect(self->dealer, "%s", self->args->endpoint)) {
         engine_set_exception(self, connect_error_event);
-        zsys_warning("could not connect to %s", self->args->endpoint);
+        zsys_warning("could not connect client to %s", self->args->endpoint);
         zsock_send(self->cmdpipe, "si", "FAILURE", 0);
     } else {
         zsys_debug("connected to %s", self->args->endpoint);

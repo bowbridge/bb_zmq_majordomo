@@ -934,7 +934,7 @@ static uint8_t
 mdp_worker_constructor(mdp_worker_t *self, const char *endpoint, const char *service, unsigned const char *auth_key,
                        unsigned const char *broker_pk) {
     assert (self);
-    if (NULL != auth_key && NULL == broker_pk) {
+    if (NULL != auth_key && NULL != broker_pk) {
         zsock_send(self->actor, "sssss", "CONSTRUCTOR", endpoint, service, auth_key, broker_pk);
     } else {
         zsock_send(self->actor, "sssss", "CONSTRUCTOR", endpoint, service, "", "");
