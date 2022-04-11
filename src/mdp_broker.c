@@ -716,42 +716,46 @@ handle_ready(client_t *self) {
             f = zmsg_pop(ready_body); // authkey?
             if (f) {
                 char *authkey = zframe_strdup(f);
-                if (authkey) {
-                    //zsys_debug("Got worker Authkey: %s", authkey);
-                    //check if we know this worker's authkey
-                    int res = zlist_exists(self->server->known_psks, authkey);
-                    free(authkey);
-                    if (0 == res) {
-                        zsys_debug("unknown worker Authkey");
-                        s_worker_delete(worker, 1);
-                        return;
-                    }
-                    zframe_destroy(&f);
-                    f = zmsg_pop(ready_body);
-                    if (f) {
-                        //zsys_debug("Got worker KX PK frame : %s", zframe_strhex(f));
-                        unsigned char *worker_kx_pk = (unsigned char *) zframe_strdup(f);
+                if (self->server->known_psks) {
+                    if (authkey) {
+                        //zsys_debug("Got worker Authkey: %s", authkey);
+                        //check if we know this worker's authkey
+                        int res = zlist_exists(self->server->known_psks, authkey);
+                        free(authkey);
+                        if (0 == res) {
+                            zsys_debug("unknown worker Authkey");
+                            s_worker_delete(worker, 1);
+                            return;
+                        }
                         zframe_destroy(&f);
-                        if (worker_kx_pk) {
-                            if (self->server->my_sk && self->server->my_pk) {
-                                // generate keys
-                                worker->session_key_tx = (unsigned char *) zmalloc(crypto_kx_SESSIONKEYBYTES);
-                                worker->session_key_rx = (unsigned char *) zmalloc(crypto_kx_SESSIONKEYBYTES);
+                        f = zmsg_pop(ready_body);
+                        if (f) {
+                            //zsys_debug("Got worker KX PK frame : %s", zframe_strhex(f));
+                            unsigned char *worker_kx_pk = (unsigned char *) zframe_strdup(f);
+                            zframe_destroy(&f);
+                            if (worker_kx_pk) {
+                                if (self->server->my_sk && self->server->my_pk) {
+                                    // generate keys
+                                    worker->session_key_tx = (unsigned char *) zmalloc(crypto_kx_SESSIONKEYBYTES);
+                                    worker->session_key_rx = (unsigned char *) zmalloc(crypto_kx_SESSIONKEYBYTES);
 
-                                if (crypto_kx_server_session_keys(worker->session_key_rx, worker->session_key_tx,
-                                                                  self->server->my_pk, self->server->my_sk,
-                                                                  worker_kx_pk) !=
-                                    0) {
-                                    zsys_error("Failed to create session keys");
-                                    s_worker_delete(worker, 1);
-                                    free(worker_kx_pk);
-                                    zmsg_destroy(&ready_body);
-                                    return;
+                                    if (crypto_kx_server_session_keys(worker->session_key_rx, worker->session_key_tx,
+                                                                      self->server->my_pk, self->server->my_sk,
+                                                                      worker_kx_pk) !=
+                                        0) {
+                                        zsys_error("Failed to create session keys");
+                                        s_worker_delete(worker, 1);
+                                        free(worker_kx_pk);
+                                        zmsg_destroy(&ready_body);
+                                        return;
+                                    }
                                 }
+                                free(worker_kx_pk);
                             }
-                            free(worker_kx_pk);
                         }
                     }
+                } else {
+                    zsys_error("No known_worker keys loaded");
                 }
             }
             zmsg_destroy(&ready_body);
