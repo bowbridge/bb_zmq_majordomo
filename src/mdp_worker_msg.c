@@ -512,7 +512,7 @@ mdp_worker_msg_send(mdp_worker_msg_t *self, zsock_t *output) {
                 nbr_frames += zmsg_size(self->body);
                 send_body = true;
             }
-            printf("DEBUG: sending total of %d frames\r\n", (int) nbr_frames);
+            //printf("DEBUG: sending total of %d frames\r\n", (int) nbr_frames);
             break;
 
         case MDP_WORKER_MSG_WORKER_REQUEST: PUT_STRING ("MDPW02");

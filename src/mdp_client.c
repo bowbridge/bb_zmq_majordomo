@@ -324,7 +324,7 @@ send_partial_response(client_t *self) {
         } else if (zframe_streq(frame, "BB_MDP_PLAIN")) {
             zsys_debug("Plain message");
         } else {
-            zsys_error("Invalid message (missing security identifier)");
+            zsys_error("Invalid partial response message (missing security identifier)");
             zframe_destroy(&frame);
             return;
         }
@@ -346,12 +346,13 @@ send_final_response(client_t *self) {
     zframe_t *frame = zmsg_pop(body);
     if (frame) {
         if (zframe_streq(frame, "BB_MDP_SECURE")) {
-            zsys_debug("Encrypted message");
+            zsys_debug("CLIENT: got Encrypted message");
             s_client_decrypt_body(body, self->session_key_rx);
         } else if (zframe_streq(frame, "BB_MDP_PLAIN")) {
-            zsys_debug("Plain message");
+            zsys_debug("CLIENT: got Plain message");
         } else {
-            zsys_error("Invalid message (missing security identifier)");
+            zsys_error("Invalid final response message (missing security identifier)");
+            zmsg_dump(body);
             zframe_destroy(&frame);
             return;
         }
