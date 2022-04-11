@@ -367,62 +367,66 @@ handle_mmi(client_t *self, const char *service_name) {
 }
 
 static int s_broker_encrypt_body(zmsg_t *body, unsigned char *key) {
-    if (NULL != body && NULL != key) {
-        // encrypt the original body - frame by frame
-        int num_frames = (int) zmsg_size(body);
-        // prepend identifier pubkey and first nonce
-        unsigned char initial_nonce[crypto_secretbox_NONCEBYTES];
-        randombytes_buf(initial_nonce, crypto_secretbox_NONCEBYTES);
-        unsigned char nonce[crypto_secretbox_NONCEBYTES];
-        memcpy(nonce, initial_nonce, crypto_secretbox_NONCEBYTES);
+    if (NULL != body) {
+        if (NULL != key) {
+            // encrypt the original body - frame by frame
+            int num_frames = (int) zmsg_size(body);
+            // prepend identifier pubkey and first nonce
+            unsigned char initial_nonce[crypto_secretbox_NONCEBYTES];
+            randombytes_buf(initial_nonce, crypto_secretbox_NONCEBYTES);
+            unsigned char nonce[crypto_secretbox_NONCEBYTES];
+            memcpy(nonce, initial_nonce, crypto_secretbox_NONCEBYTES);
 
-        int i = 0;
-        zsys_debug("BROKER: Encrypting with key %2x %2x ... %2x %2x ", key[0], key[1],
-                   key[crypto_kx_SESSIONKEYBYTES - 2],
-                   key[crypto_kx_SESSIONKEYBYTES - 1]);
-        for (i = 0; i < num_frames; i++) {
-            zframe_t *frame = zmsg_pop(body);
-            if (NULL != frame) {
-                size_t data_plain_len = zframe_size(frame);
-                unsigned char *data_plain = (unsigned char *) zframe_data(frame);
-                size_t data_encrypted_len = crypto_secretbox_MACBYTES + data_plain_len;
-                unsigned char *data_encrypted = (unsigned char *) zmalloc(data_encrypted_len);
-                if (NULL == data_encrypted) {
-                    zsys_error("Memory allocation error");
-                    return -1;
+            int i = 0;
+            zsys_debug("BROKER: Encrypting with key %2x %2x ... %2x %2x ", key[0], key[1],
+                       key[crypto_kx_SESSIONKEYBYTES - 2],
+                       key[crypto_kx_SESSIONKEYBYTES - 1]);
+            for (i = 0; i < num_frames; i++) {
+                zframe_t *frame = zmsg_pop(body);
+                if (NULL != frame) {
+                    size_t data_plain_len = zframe_size(frame);
+                    unsigned char *data_plain = (unsigned char *) zframe_data(frame);
+                    size_t data_encrypted_len = crypto_secretbox_MACBYTES + data_plain_len;
+                    unsigned char *data_encrypted = (unsigned char *) zmalloc(data_encrypted_len);
+                    if (NULL == data_encrypted) {
+                        zsys_error("Memory allocation error");
+                        return -1;
+                    }
+                    int res = crypto_secretbox_easy(data_encrypted, data_plain,
+                                                    data_plain_len,
+                                                    nonce, key);
+                    zsys_debug("BROKER: Encrypting frame %d - %s", i + 1, res == 0 ? "SUCESS" : "ERROR");
+                    if (res != 0) {
+                        return -1;
+                    }
+                    zmsg_addmem(body, data_encrypted, data_encrypted_len);
+                    free(data_encrypted);
+                    zframe_destroy(&frame);
+                    // increment the nonce for the next frame (if any)
+                    sodium_increment(nonce, crypto_secretbox_NONCEBYTES);
                 }
-                int res = crypto_secretbox_easy(data_encrypted, data_plain,
-                                                data_plain_len,
-                                                nonce, key);
-                zsys_debug("BROKER: Encrypting frame %d - %s", i + 1, res == 0 ? "SUCESS" : "ERROR");
-                if (res != 0) {
-                    return -1;
-                }
-                zmsg_addmem(body, data_encrypted, data_encrypted_len);
-                free(data_encrypted);
-                zframe_destroy(&frame);
-                // increment the nonce for the next frame (if any)
-                sodium_increment(nonce, crypto_secretbox_NONCEBYTES);
             }
+            // add the "canary" frame
+            char *canary = "BB_MDP_SECURE";
+            unsigned char *data_encrypted = (unsigned char *) zmalloc(strlen(canary) + crypto_secretbox_MACBYTES);
+            crypto_secretbox_easy(data_encrypted, (unsigned char *) canary,
+                                  strlen(canary),
+                                  nonce, key);
+            zmsg_addmem(body, data_encrypted, strlen(canary) + crypto_secretbox_MACBYTES);
+            free(data_encrypted);
+
+            zmsg_pushmem(body, initial_nonce, crypto_secretbox_NONCEBYTES);
+            zmsg_pushstr(body, "BB_MDP_SECURE");
+
+
+        } else {
+            // prepend identifier pubkey and frames
+            zmsg_pushstr(body, "BB_MDP_PLAIN");
         }
-        // add the "canary" frame
-        char *canary = "BB_MDP_SECURE";
-        unsigned char *data_encrypted = (unsigned char *) zmalloc(strlen(canary) + crypto_secretbox_MACBYTES);
-        crypto_secretbox_easy(data_encrypted, (unsigned char *) canary,
-                              strlen(canary),
-                              nonce, key);
-        zmsg_addmem(body, data_encrypted, strlen(canary) + crypto_secretbox_MACBYTES);
-        free(data_encrypted);
-
-        zmsg_pushmem(body, initial_nonce, crypto_secretbox_NONCEBYTES);
-        zmsg_pushstr(body, "BB_MDP_SECURE");
-
-
-    } else {
-        // prepend identifier pubkey and frames
-        zmsg_pushstr(body, "BB_MDP_PLAIN");
+        return 0;
     }
-    return 0;
+    return -1;
+
 }
 
 static int s_broker_decrypt_body(zmsg_t *body, unsigned char *key) {
