@@ -361,6 +361,7 @@ handle_mmi(client_t *self, const char *service_name) {
     mdp_msg_set_service(client_msg, service_name);
     zmsg_t *rep_body = zmsg_new();
     zmsg_pushstr(rep_body, result);
+    s_broker_encrypt_body(rep_body, self->session_key_tx);
     mdp_msg_set_body(client_msg, &rep_body);
     mdp_msg_send(client_msg, self->server->router);
     mdp_msg_destroy(&client_msg);
@@ -422,6 +423,7 @@ static int s_broker_encrypt_body(zmsg_t *body, unsigned char *key) {
         } else {
             // prepend identifier pubkey and frames
             zmsg_pushstr(body, "BB_MDP_PLAIN");
+            return 0;
         }
         return 0;
     }

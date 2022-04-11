@@ -351,7 +351,7 @@ send_final_response(client_t *self) {
         } else if (zframe_streq(frame, "BB_MDP_PLAIN")) {
             zsys_debug("CLIENT: got Plain message");
         } else {
-            zsys_error("Invalid final response message (missing security identifier)");
+            zsys_error("Invalid final response message (missing security identifier: %s)", zframe_strhex(frame));
             zmsg_dump(body);
             zframe_destroy(&frame);
             return;
