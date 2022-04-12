@@ -161,11 +161,11 @@ s_worker_delete(worker_t *self, int disconnect) {
     }
 
     if (self->service) {
-        zsys_debug("Deleting worker %s from service list", self->identity);
+        // zsys_debug("Deleting worker %s from service list", self->identity);
         zlist_remove(self->service->waiting, self);
         self->service->workers--;
     }
-    zsys_debug("Deleting worker %s from broker's waiting list", self->identity);
+    // zsys_debug("Deleting worker %s from broker's waiting list", self->identity);
     zlist_remove(self->broker->waiting, self);
     // This implicitly calls s_worker_destroy.
     zhash_delete(self->broker->workers, self->identity);
@@ -206,7 +206,7 @@ s_service_dispatch(service_t *self) {
         s_broker_encrypt_body(body, worker->session_key_tx);
 
         mdp_msg_set_body(worker_msg, &body);
-        zsys_debug("BROKER: Dispatching request to worker %s", worker->identity);
+        // zsys_debug("BROKER: Dispatching request to worker %s", worker->identity);
         mdp_msg_send(worker_msg, self->broker->router);
         mdp_msg_destroy(&worker_msg);
         mdp_msg_destroy(&msg);
@@ -379,9 +379,7 @@ static int s_broker_encrypt_body(zmsg_t *body, unsigned char *key) {
             memcpy(nonce, initial_nonce, crypto_secretbox_NONCEBYTES);
 
             int i = 0;
-            zsys_debug("BROKER: Encrypting with key %2x %2x ... %2x %2x ", key[0], key[1],
-                       key[crypto_kx_SESSIONKEYBYTES - 2],
-                       key[crypto_kx_SESSIONKEYBYTES - 1]);
+            // zsys_debug("BROKER: Encrypting with key %2x %2x ... %2x %2x ", key[0], key[1],key[crypto_kx_SESSIONKEYBYTES - 2],key[crypto_kx_SESSIONKEYBYTES - 1]);
             for (i = 0; i < num_frames; i++) {
                 zframe_t *frame = zmsg_pop(body);
                 if (NULL != frame) {
@@ -396,7 +394,7 @@ static int s_broker_encrypt_body(zmsg_t *body, unsigned char *key) {
                     int res = crypto_secretbox_easy(data_encrypted, data_plain,
                                                     data_plain_len,
                                                     nonce, key);
-                    zsys_debug("BROKER: Encrypting frame %d - %s", i + 1, res == 0 ? "SUCESS" : "ERROR");
+                    // zsys_debug("BROKER: Encrypting frame %d - %s", i + 1, res == 0 ? "SUCESS" : "ERROR");
                     if (res != 0) {
                         return -1;
                     }
@@ -443,9 +441,7 @@ static int s_broker_decrypt_body(zmsg_t *body, unsigned char *key) {
 
             int num_frames = (int) zmsg_size(body) - 1;
             int i = 0;
-            zsys_debug("BROKER: Decrypting with key %2x %2x ... %2x %2x ", key[0], key[1],
-                       key[crypto_kx_SESSIONKEYBYTES - 2],
-                       key[crypto_kx_SESSIONKEYBYTES - 1]);
+            //  zsys_debug("BROKER: Decrypting with key %2x %2x ... %2x %2x ", key[0], key[1], key[crypto_kx_SESSIONKEYBYTES - 2],key[crypto_kx_SESSIONKEYBYTES - 1]);
             for (i = 0; i < num_frames; i++) {
                 frame = zmsg_pop(body);
                 if (frame) {
@@ -464,7 +460,7 @@ static int s_broker_decrypt_body(zmsg_t *body, unsigned char *key) {
                             }
                             zmsg_addmem(body, plaintext, plaintextlen);
                             zframe_destroy(&frame);
-                            zsys_debug("BROKER: decrypted data frame #%d", (i + 1));
+                            // zsys_debug("BROKER: decrypted data frame #%d", (i + 1));
                             // increment the nonce for the next frame (if any)
                             sodium_increment(nonce, crypto_secretbox_NONCEBYTES);
                         }
@@ -519,7 +515,7 @@ handle_request(client_t *self) {
     zframe_t *f = zmsg_pop(body);
     if (NULL != f) {
         if (zframe_streq(f, "BB_MDP_SECURE")) {
-            zsys_debug("Encrypted message");
+            //  zsys_debug("Encrypted message");
             // get the client pubkey frame
             zframe_destroy(&f);
             f = zmsg_pop(body);
@@ -543,7 +539,7 @@ handle_request(client_t *self) {
                     zsys_error("Failed to generate session keys");
                     return;
                 }
-                zsys_debug("Session keys with Client established");
+                //  zsys_debug("Session keys with Client established");
                 //}
                 zframe_destroy(&f);
 
@@ -695,11 +691,11 @@ static void
 handle_ready(client_t *self) {
     mdp_msg_t *msg = self->message;
     const char *service_name = mdp_msg_service(msg);
-    zsys_debug("handle_ready: service=%s\n", service_name);
+    //  zsys_debug("handle_ready: service=%s\n", service_name);
     zframe_t *routing_id = mdp_msg_routing_id(msg);
     assert(routing_id);
     char *identity = zframe_strhex(routing_id);
-    zsys_debug("handle_ready: worker %s READY for service=%s\n", identity, service_name);
+    //  zsys_debug("handle_ready: worker %s READY for service=%s\n", identity, service_name);
 
     int worker_ready = (zhash_lookup(self->server->workers, identity) != NULL);
     free(identity);
@@ -725,7 +721,7 @@ handle_ready(client_t *self) {
                         int res = zlist_exists(self->server->known_psks, authkey);
                         free(authkey);
                         if (0 == res) {
-                            zsys_debug("unknown worker Authkey");
+                            //  zsys_debug("unknown worker Authkey");
                             s_worker_delete(worker, 1);
                             return;
                         }

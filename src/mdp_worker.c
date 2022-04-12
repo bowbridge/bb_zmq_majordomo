@@ -73,9 +73,7 @@ static int s_worker_encrypt_body(zmsg_t *body, unsigned char *key) {
         memcpy(nonce, initial_nonce, crypto_secretbox_NONCEBYTES);
 
         int i = 0;
-        zsys_debug("WORKER: Encrypting with key %2x %2x ... %2x %2x ", key[0], key[1],
-                   key[crypto_kx_SESSIONKEYBYTES - 2],
-                   key[crypto_kx_SESSIONKEYBYTES - 1]);
+        // zsys_debug("WORKER: Encrypting with key %2x %2x ... %2x %2x ", key[0], key[1],key[crypto_kx_SESSIONKEYBYTES - 2],key[crypto_kx_SESSIONKEYBYTES - 1]);
         for (i = 0; i < num_frames; i++) {
             zframe_t *frame = zmsg_pop(body);
             if (NULL != frame) {
@@ -91,7 +89,7 @@ static int s_worker_encrypt_body(zmsg_t *body, unsigned char *key) {
                 int res = crypto_secretbox_easy(data_encrypted, data_plain,
                                                 data_plain_len,
                                                 nonce, key);
-                zsys_debug("WORKER: Encrypting frame %d - %s", i + 1, res == 0 ? "SUCESS" : "ERROR");
+                // zsys_debug("WORKER: Encrypting frame %d - %s", i + 1, res == 0 ? "SUCESS" : "ERROR");
                 if (res != 0) {
                     return -1;
                 }
@@ -110,9 +108,7 @@ static int s_worker_encrypt_body(zmsg_t *body, unsigned char *key) {
                                        strlen(canary),
                                        nonce, key)) {
             zmsg_addmem(body, data_encrypted, strlen(canary) + crypto_secretbox_MACBYTES);
-            zsys_debug("WORKER: Canary added");
         } else {
-            zsys_debug("WORKER: Failed to encrypt/add canary frame");
             if (data_encrypted) {
                 free(data_encrypted);
             }
@@ -135,9 +131,7 @@ static int s_worker_decrypt_body(zmsg_t *body, unsigned char *key) {
             zframe_destroy(&frame);
             int num_frames = (int) zmsg_size(body) - 1;
             int i = 0;
-            zsys_debug("WORKER: Decrypting with key %2x %2x ... %2x %2x ", key[0], key[1],
-                       key[crypto_kx_SESSIONKEYBYTES - 2],
-                       key[crypto_kx_SESSIONKEYBYTES - 1]);
+            // zsys_debug("WORKER: Decrypting with key %2x %2x ... %2x %2x ", key[0], key[1],key[crypto_kx_SESSIONKEYBYTES - 2],key[crypto_kx_SESSIONKEYBYTES - 1]);
             for (i = 0; i < num_frames; i++) {
 
                 frame = zmsg_pop(body);
@@ -157,7 +151,7 @@ static int s_worker_decrypt_body(zmsg_t *body, unsigned char *key) {
                             }
                             zmsg_addmem(body, plaintext, plaintextlen);
                             zframe_destroy(&frame);
-                            zsys_debug("WORKER: decrypted data frame #%d", (i + 1));
+                            // zsys_debug("WORKER: decrypted data frame #%d", (i + 1));
                             // increment the nonce for the next frame (if any)
                             sodium_increment(nonce, crypto_secretbox_NONCEBYTES);
                         }
@@ -236,7 +230,7 @@ connect_to_server(client_t *self) {
         zsys_warning("could not connect to %s", self->args->endpoint);
         zsock_send(self->cmdpipe, "si", "FAILURE", 0);
     } else {
-        zsys_debug("connected to %s", self->args->endpoint);
+        //  zsys_debug("connected to %s", self->args->endpoint);
         zsock_send(self->cmdpipe, "si", "SUCCESS", 0);
     }
 }
@@ -342,7 +336,7 @@ prepare_ready_message(client_t *self) {
     self->service = strdup(self->args->service); // TODO: is this needed?
     mdp_worker_msg_set_service(self->message, self->service);
     if (NULL != self->auth_key && NULL != self->broker_pk) {
-        zsys_debug("mdp_worker:            $ preparing key exchange");
+        // zsys_debug("mdp_worker:            $ preparing key exchange");
 
         // ephemeral keypair
         unsigned char client_pk[crypto_kx_PUBLICKEYBYTES], client_sk[crypto_kx_SECRETKEYBYTES];

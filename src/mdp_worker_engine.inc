@@ -935,10 +935,10 @@ mdp_worker_constructor(mdp_worker_t *self, const char *endpoint, const char *ser
                        unsigned const char *broker_pk) {
     assert (self);
     if (NULL != auth_key && NULL != broker_pk) {
-        zsys_debug("worker is using payload encryption");
+        //  zsys_debug("worker is using payload encryption");
         zsock_send(self->actor, "sssss", "CONSTRUCTOR", endpoint, service, auth_key, broker_pk);
     } else {
-        zsys_debug("worker is using plain data");
+        // zsys_debug("worker is using plain data");
         zsock_send(self->actor, "sssss", "CONSTRUCTOR", endpoint, service, "", "");
     }
     if (s_accept_reply(self, "SUCCESS", "FAILURE", NULL))

@@ -97,7 +97,7 @@ connect_to_server(client_t *self) {
         zsys_warning("could not connect client to %s", self->args->endpoint);
         zsock_send(self->cmdpipe, "si", "FAILURE", 0);
     } else {
-        zsys_debug("connected to %s", self->args->endpoint);
+        // zsys_debug("connected to %s", self->args->endpoint);
         zsock_send(self->cmdpipe, "si", "SUCCESS", 0);
     }
 }
@@ -195,7 +195,7 @@ send_request_to_broker(client_t *self) {
                 int res = crypto_secretbox_easy(data_encrypted, data_plain,
                                                 data_plain_len,
                                                 nonce, self->session_key_tx);
-                zsys_debug("CLIENT: Encrypting frame %d - %s", i + 1, res == 0 ? "SUCESS" : "ERROR");
+                // zsys_debug("CLIENT: Encrypting frame %d - %s", i + 1, res == 0 ? "SUCESS" : "ERROR");
                 if (res != 0) {
                     return;
                 }
@@ -211,9 +211,7 @@ send_request_to_broker(client_t *self) {
         // add the "canary" frame
         char *canary = "BB_MDP_SECURE";
         unsigned char *data_encrypted = (unsigned char *) zmalloc(strlen(canary) + crypto_secretbox_MACBYTES);
-        zsys_debug("CLIENT: Encrypting with key %2x %2x ... %2x %2x ", self->session_key_tx[0], self->session_key_tx[1],
-                   self->session_key_tx[crypto_kx_SESSIONKEYBYTES - 2],
-                   self->session_key_tx[crypto_kx_SESSIONKEYBYTES - 1]);
+        // zsys_debug("CLIENT: Encrypting with key %2x %2x ... %2x %2x ", self->session_key_tx[0], self->session_key_tx[1],self->session_key_tx[crypto_kx_SESSIONKEYBYTES - 2],self->session_key_tx[crypto_kx_SESSIONKEYBYTES - 1]);
 
         crypto_secretbox_easy(data_encrypted, (unsigned char *) canary,
                               strlen(canary),
@@ -257,9 +255,7 @@ static int s_client_decrypt_body(zmsg_t *body, unsigned char *key) {
         memcpy(nonce, zframe_data(f), crypto_secretbox_NONCEBYTES);
         zframe_destroy(&f);
         int numframes = (int) zmsg_size(body) - 1;
-        zsys_debug("CLIENT: Decrypting with key %2x %2x ... %2x %2x ", key[0], key[1],
-                   key[crypto_kx_SESSIONKEYBYTES - 2],
-                   key[crypto_kx_SESSIONKEYBYTES - 1]);
+        // zsys_debug("CLIENT: Decrypting with key %2x %2x ... %2x %2x ", key[0], key[1],key[crypto_kx_SESSIONKEYBYTES - 2],key[crypto_kx_SESSIONKEYBYTES - 1]);
         for (i = 0; i < numframes; i += 2) {
             f = zmsg_pop(body);
             if (f) {
@@ -271,7 +267,7 @@ static int s_client_decrypt_body(zmsg_t *body, unsigned char *key) {
                     int res = crypto_secretbox_open_easy(frame_plain, frame_encrypted, frame_encrypted_len,
                                                          nonce, key);
                     if (0 == res) {
-                        zsys_debug("Decrypted frame #%d", i);
+                        // zsys_debug("Decrypted frame #%d", i);
                         zmsg_addmem(body, frame_plain, frame_plain_len);
                     }
                 } else {
@@ -319,10 +315,10 @@ send_partial_response(client_t *self) {
     zframe_t *frame = zmsg_pop(body);
     if (frame) {
         if (zframe_streq(frame, "BB_MDP_SECURE")) {
-            zsys_debug("Encrypted message");
+            // zsys_debug("Encrypted message");
             s_client_decrypt_body(body, self->session_key_rx);
         } else if (zframe_streq(frame, "BB_MDP_PLAIN")) {
-            zsys_debug("Plain message");
+            //  zsys_debug("Plain message");
         } else {
             zsys_error("Invalid partial response message (missing security identifier)");
             zframe_destroy(&frame);
@@ -346,10 +342,10 @@ send_final_response(client_t *self) {
     zframe_t *frame = zmsg_pop(body);
     if (frame) {
         if (zframe_streq(frame, "BB_MDP_SECURE")) {
-            zsys_debug("CLIENT: got Encrypted message");
+            // zsys_debug("CLIENT: got Encrypted message");
             s_client_decrypt_body(body, self->session_key_rx);
         } else if (zframe_streq(frame, "BB_MDP_PLAIN")) {
-            zsys_debug("CLIENT: got Plain message");
+            //  zsys_debug("CLIENT: got Plain message");
         } else {
             zsys_error("Invalid final response message (missing security identifier: %s)", zframe_strhex(frame));
             zmsg_dump(body);

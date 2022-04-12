@@ -334,8 +334,8 @@ s_client_execute(s_client_t *self, event_t event) {
         self->next_event = NULL_event;
         self->exception = NULL_event;
         if (mdp_client_verbose) {
-            zsys_debug("mdp_client: %s:", s_state_name[self->state]);
-            zsys_debug("mdp_client:        %s", s_event_name[self->event]);
+            // zsys_debug("mdp_client: %s:", s_state_name[self->state]);
+            // zsys_debug("mdp_client:        %s", s_event_name[self->event]);
         }
         switch (self->state) {
             case start_state:

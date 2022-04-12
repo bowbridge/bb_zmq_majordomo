@@ -505,9 +505,8 @@ s_client_execute(s_client_t *self, event_t event) {
                             mdp_msg_t *msg = self->server->message;
                             zframe_t *routing_id = mdp_msg_routing_id(msg);
                             assert(routing_id);
-                            char *identity = zframe_strhex(routing_id);
-                            zsys_debug("BROKER: Worker %s for service %s timed out", identity,
-                                       self->client.service_name);
+                            //char *identity = zframe_strhex(routing_id);
+                            // zsys_debug("BROKER: Worker %s for service %s timed out", identity,self->client.service_name);
                             delete_worker(&self->client);
                         }
                     }
@@ -733,11 +732,9 @@ static int s_load_keystore(char *keystore, server_t *server) {
     zlist_comparefn(server->known_psks, (zlist_compare_fn *) key_compare);
     FILE *fp = fopen(keystore, "r");
     if (fp) {
-        zsys_debug("Opened %s", keystore);
         char line[80];
         while (fgets(line, 80, fp)) {
             char *key = strdup(line);
-            zsys_debug("read key: %s", key);
             zlist_append(server->known_psks, key);
             zlist_freefn(server->known_psks, key, free, false);
         }
@@ -778,7 +775,7 @@ s_server_handle_pipe(zloop_t *loop, zsock_t *reader, void *argument) {
             size_t binlen = 0;
             sodium_base642bin(self->server.my_pk, (size_t) crypto_kx_PUBLICKEYBYTES, pk, strlen(pk), NULL,
                               &binlen, NULL, sodium_base64_VARIANT_URLSAFE_NO_PADDING);
-            zsys_debug("Set public key");
+            // zsys_debug("Set public key");
             free(pk);
             char *sk = zmsg_popstr(msg);
             if (sk) {
@@ -787,16 +784,16 @@ s_server_handle_pipe(zloop_t *loop, zsock_t *reader, void *argument) {
                 }
                 sodium_base642bin(self->server.my_sk, (size_t) crypto_kx_SECRETKEYBYTES, sk, strlen(sk), NULL,
                                   &binlen, NULL, sodium_base64_VARIANT_URLSAFE_NO_PADDING);
-                zsys_debug("Set private key");
+                //  zsys_debug("Set private key");
                 free(sk);
                 char *keystore = zmsg_popstr(msg);
                 if (keystore) {
-                    zsys_debug("got keystore: %s", keystore);
+                    // zsys_debug("got keystore: %s", keystore);
                     if (s_load_keystore(keystore, &self->server)) {
                         zsys_error("Failed to load keystore for worker authentication");
                     }
                     free(keystore);
-                    zsys_debug("Keys set");
+                    // zsys_debug("Keys set");
                 }
             }
         }
