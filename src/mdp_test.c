@@ -15,10 +15,13 @@ int
 main() {
     printf("hello mdp_test\n");
 
-    char *endpoint = "tcp://localhost:9002";
-    char *endpoint_bind = "tcp://*:9002";
-    mdp_client_t *client = mdp_client_new(endpoint, NULL);//(unsigned char *) BROKER_PK);
-    //mdp_client_t *client = mdp_client_new(endpoint, NULL);
+
+    //char *endpoint = "tcp://localhost:9002";
+    //char *endpoint_bind = "tcp://*:9002";
+    char *endpoint = "ipc:///tmp/mdp.ipc";
+    char *endpoint_bind = endpoint;
+    //mdp_client_t *client = mdp_client_new(endpoint, (unsigned char *) BROKER_PK);
+    mdp_client_t *client = mdp_client_new(endpoint, NULL);
     mdp_client_set_verbose(client);
 
     zactor_t *broker = zactor_new(mdp_broker, "server");
@@ -34,11 +37,24 @@ main() {
                                           NULL);//(unsigned char *) WORKER_PK, (unsigned char *) BROKER_PK);
 
     assert(worker);
-
     mdp_worker_set_verbose(worker);
+    sleep(1);
 
+    printf("** trying mmi\r\n");
 
-    int i = 0;
+    zmsg_t *mmi_msg = zmsg_new();
+    zmsg_addstr(mmi_msg, service);
+    mdp_client_request(client, "mmi.service", &mmi_msg);
+    zsock_t *client_sock = mdp_client_msgpipe(client);
+    char *_cmd = NULL;
+    zmsg_t *_message = NULL;
+    zsock_recv(client_sock, "sm", &_cmd, &_message);
+    printf("Client got reply %s\n", _cmd);
+    printf(" Response body:\n");
+    zmsg_print(_message);
+    zmsg_destroy(&_message);
+    
+    int i;
     for (i = 0; i < 3; i++) {
         zmsg_t *msg = zmsg_new();
         assert(msg);
@@ -63,6 +79,7 @@ main() {
         printf("Got command: %s\n", cmd);
 
 
+
         // Process the message.
         zframe_t *first = zmsg_first(message);
         char *first_str = zframe_strdup(first);
@@ -84,7 +101,7 @@ main() {
         mdp_worker_send_partial(worker, &address2, &msg_response);
 
         // Wait for partial reponse.
-        zsock_t *client_sock = mdp_client_msgpipe(client);
+        //zsock_t *client_sock = mdp_client_msgpipe(client);
         res = zsock_recv(client_sock, "sm", &cmd, &message);
         printf("Client (2): got command %s\n", cmd);
         printf(" Response body:\n");

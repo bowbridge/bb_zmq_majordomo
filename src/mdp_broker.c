@@ -341,7 +341,46 @@ handle_mmi(client_t *self, const char *service_name) {
     zmsg_t *mmibody = mdp_msg_get_body(self->message);
 
     if (mmibody) {
+        zframe_t *f = zmsg_pop(mmibody);
+        if (f) {
+            if (zframe_streq(f, "BB_MDP_SECURE")) {
 
+                zframe_destroy(&f);
+                f = zmsg_pop(mmibody);
+                if (f) {
+                    // calculate keys if the ephemeral client PK changed, of keys have not been generated before
+                    /* if ((self->client_pk != NULL &&
+                         memcmp(zframe_data(f), self->client_pk, crypto_kx_PUBLICKEYBYTES) != 0) ||
+                        self->session_key_tx == NULL || self->session_key_rx == NULL) { */
+                    if (NULL == self->client_pk) {
+                        self->client_pk = (unsigned char *) zmalloc(crypto_kx_PUBLICKEYBYTES);
+                    }
+                    memcpy(self->client_pk, zframe_data(f), crypto_kx_PUBLICKEYBYTES);
+                    if (NULL == self->session_key_tx) {
+                        self->session_key_tx = (unsigned char *) zmalloc(crypto_kx_SESSIONKEYBYTES);
+                    }
+                    if (NULL == self->session_key_rx) {
+                        self->session_key_rx = (unsigned char *) zmalloc(crypto_kx_SESSIONKEYBYTES);
+                    }
+                    if (crypto_kx_server_session_keys(self->session_key_rx, self->session_key_tx, self->server->my_pk,
+                                                      self->server->my_sk, self->client_pk)) {
+                        zsys_error("Failed to generate session keys");
+                        return;
+                    }
+                    //  zsys_debug("Session keys with Client established");
+                    //}
+                    zframe_destroy(&f);
+
+                    // decrypt the body, frame by frame
+                    if (0 != s_broker_decrypt_body(mmibody, self->session_key_rx)) {
+                        zsys_error("BROKER: Decryption error");
+                        zmsg_destroy(&mmibody);
+                        return;
+                    }
+                } else return;
+            }
+            zframe_destroy(&f);
+        }
         if (strstr(service_name, "mmi.service")) {
             char *svc_lookup = zmsg_popstr(mmibody);
             if (svc_lookup) {
