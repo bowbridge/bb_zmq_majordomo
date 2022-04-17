@@ -489,26 +489,30 @@ s_client_execute(s_client_t *self, event_t event) {
                 } else if (self->event == send_heartbeat_event) {
                     if (!self->exception) {
                         //  send HEARTBEAT
-                        if (self->server->verbose) {
-                            //  zsys_debug("%s:         $ send HEARTBEAT",self->log_prefix);
-                        }
                         mdp_msg_set_id(self->server->message, MDP_MSG_HEARTBEAT);
                         mdp_msg_set_routing_id(self->server->message, self->routing_id);
+                        if (self->server->verbose) {
+                            zsys_debug("%s:         $ send HEARTBEAT to worker ", self->log_prefix,
+                                       zframe_strhex(self->routing_id));
+                        }
                         mdp_msg_send(self->server->message, self->server->router);
+
                     }
                     if (!self->exception) {
                         //  check timeouts
                         if (self->server->verbose) {
-                            //zsys_debug("%s:         $ check timeouts", self->log_prefix);
+                            zsys_debug("%s:         $ check timeouts", self->log_prefix);
                         }
-                        if (check_timeouts(&self->client) != 0) {
-                            mdp_msg_t *msg = self->server->message;
-                            zframe_t *routing_id = mdp_msg_routing_id(msg);
-                            assert(routing_id);
-                            //char *identity = zframe_strhex(routing_id);
-                            // zsys_debug("BROKER: Worker %s for service %s timed out", identity,self->client.service_name);
-                            delete_worker(&self->client);
-                        }
+                        //int _rc =
+                        check_timeouts(&self->client);
+//                        if (_rc < 0) {
+//                            mdp_msg_t *msg = self->server->message;
+//                            zframe_t *routing_id = mdp_msg_routing_id(msg);
+//                            assert(routing_id);
+//                            char *identity = zframe_strhex(routing_id);
+//                            zsys_debug("BROKER: Worker %s for service %s timed out", identity,self->client.service_name);
+//                            delete_worker(&self->client);
+//                        }
                     }
                     if (!self->exception) {
                         //  handle set wakeup

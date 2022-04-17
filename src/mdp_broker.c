@@ -95,7 +95,7 @@ typedef struct {
 
 // Maximum number of timeouts; If this number is reached, we stop sending
 // heartbeats and terminate connection.
-#define MAX_TIMEOUTS 5
+#define MAX_TIMEOUTS 3
 
 // Interval for sending heartbeat [ms]
 #define HEARTBEAT_DELAY 2500
@@ -132,8 +132,11 @@ s_worker_require(server_t *self, zframe_t *address) {
 
         zhash_insert(self->workers, identity, worker);
         zhash_freefn(self->workers, identity, s_worker_destroy);
-    } else
+        zsys_debug("Worker %s created", worker->identity);
+    } else {
+        zsys_warning("Worker %s existed", identity);
         free(identity);
+    }
     return worker;
 }
 
@@ -141,6 +144,7 @@ static void
 s_worker_destroy(void *argument) {
     worker_t *self = (worker_t *) argument;
     zframe_destroy(&self->address);
+    zsys_debug("destroying worker %s", self->identity);
     free(self->identity);
     if (self->session_key_tx)
         free(self->session_key_tx);
