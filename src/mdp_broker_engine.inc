@@ -503,16 +503,7 @@ s_client_execute(s_client_t *self, event_t event) {
                         if (self->server->verbose) {
                             zsys_debug("%s:         $ check timeouts", self->log_prefix);
                         }
-                        //int _rc =
                         check_timeouts(&self->client);
-//                        if (_rc < 0) {
-//                            mdp_msg_t *msg = self->server->message;
-//                            zframe_t *routing_id = mdp_msg_routing_id(msg);
-//                            assert(routing_id);
-//                            char *identity = zframe_strhex(routing_id);
-//                            zsys_debug("BROKER: Worker %s for service %s timed out", identity,self->client.service_name);
-//                            delete_worker(&self->client);
-//                        }
                     }
                     if (!self->exception) {
                         //  handle set wakeup

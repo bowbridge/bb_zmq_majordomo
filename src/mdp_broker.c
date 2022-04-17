@@ -393,6 +393,18 @@ handle_mmi(client_t *self, const char *service_name) {
                 zstr_free(&svc_lookup);
             }
         }
+        if (strstr(service_name, "mmi.workers")) {
+            char *svc_lookup = zmsg_popstr(mmibody);
+            if (svc_lookup) {
+                service_t *service = (service_t *) zhash_lookup(self->server->services, svc_lookup);
+                if (service) {
+                    result = zsys_sprintf("%d", service->workers);
+                } else {
+                    result = "-1";
+                }
+                zstr_free(&svc_lookup);
+            }
+        }
 
         zmsg_destroy(&mmibody);
     }

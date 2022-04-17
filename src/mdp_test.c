@@ -51,9 +51,22 @@ main() {
     zsock_recv(client_sock, "sm", &_cmd, &_message);
     printf("Client got reply %s\n", _cmd);
     printf(" Response body:\n");
+    free(_cmd);
+    _cmd = NULL;
     zmsg_print(_message);
     zmsg_destroy(&_message);
-    
+
+    mmi_msg = zmsg_new();
+    zmsg_addstr(mmi_msg, service);
+    mdp_client_request(client, "mmi.workers", &mmi_msg);
+    zsock_recv(client_sock, "sm", &_cmd, &_message);
+    printf("Client got reply %s\n", _cmd);
+    printf(" Response body:\n");
+    zmsg_print(_message);
+    zmsg_destroy(&_message);
+
+    getchar();
+
     int i;
     for (i = 0; i < 3; i++) {
         zmsg_t *msg = zmsg_new();
