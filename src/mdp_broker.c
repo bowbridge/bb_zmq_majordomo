@@ -82,7 +82,7 @@ typedef struct {
 
 typedef struct {
     server_t *broker;      // Broker instance
-    char *identity;         // Identity or worker
+    char *identity;         // Identity of worker
     zframe_t *address;      // Address frame to route to
     service_t *service;     // Owning service, if known
     int64_t expiry;         // Expires at unless heartbeat
@@ -399,6 +399,19 @@ handle_mmi(client_t *self, const char *service_name) {
                 service_t *service = (service_t *) zhash_lookup(self->server->services, svc_lookup);
                 if (service) {
                     result = zsys_sprintf("%d", service->workers);
+                } else {
+                    result = "-1";
+                }
+                zstr_free(&svc_lookup);
+            }
+        }
+
+        if (strstr(service_name, "mmi.waiting")) {
+            char *svc_lookup = zmsg_popstr(mmibody);
+            if (svc_lookup) {
+                service_t *service = (service_t *) zhash_lookup(self->server->services, svc_lookup);
+                if (service) {
+                    result = zsys_sprintf("%d", zlist_size(service->waiting));
                 } else {
                     result = "-1";
                 }
