@@ -211,8 +211,7 @@ send_request_to_broker(client_t *self) {
         // add the "canary" frame
         char *canary = "BB_MDP_SECURE";
         unsigned char *data_encrypted = (unsigned char *) zmalloc(strlen(canary) + crypto_secretbox_MACBYTES);
-        // zsys_debug("CLIENT: Encrypting with key %2x %2x ... %2x %2x ", self->session_key_tx[0], self->session_key_tx[1],self->session_key_tx[crypto_kx_SESSIONKEYBYTES - 2],self->session_key_tx[crypto_kx_SESSIONKEYBYTES - 1]);
-
+        
         crypto_secretbox_easy(data_encrypted, (unsigned char *) canary,
                               strlen(canary),
                               nonce, self->session_key_tx);
