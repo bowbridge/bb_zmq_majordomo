@@ -750,7 +750,7 @@ handle_ready(client_t *self) {
     zframe_t *routing_id = mdp_msg_routing_id(msg);
     assert(routing_id);
     char *identity = zframe_strhex(routing_id);
-    //  zsys_debug("handle_ready: worker %s READY for service=%s\n", identity, service_name);
+    zsys_debug("handle_ready: worker %s reports READY for service=%s\n", identity, service_name);
 
     int worker_ready = (zhash_lookup(self->server->workers, identity) != NULL);
     free(identity);
@@ -868,9 +868,9 @@ delete_worker(client_t *self) {
 static int
 check_timeouts(client_t *self) {
     self->timeouts++;
-    if (self->timeouts == MAX_TIMEOUTS) {
+    if (self->timeouts > MAX_TIMEOUTS) {
         engine_set_exception(self, terminate_event);
         return -1;
     }
-    return 0;
+    return self->timeouts;
 }

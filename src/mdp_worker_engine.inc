@@ -138,7 +138,7 @@ handle_connect_error(client_t *self);
 static void
 signal_request(client_t *self);
 
-static void
+static int
 check_timeouts(client_t *self);
 
 static void
@@ -392,8 +392,9 @@ s_client_execute(s_client_t *self, event_t event) {
                         }
                         signal_connection_success(&self->client);
                     }
-                    if (!self->exception)
+                    if (!self->exception) {
                         self->state = connected_state;
+                    }
                 } else if (self->event == connect_error_event) {
                     if (!self->exception) {
                         //  handle connect error
@@ -455,7 +456,10 @@ s_client_execute(s_client_t *self, event_t event) {
                         if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ check timeouts");
                         }
-                        check_timeouts(&self->client);
+                        if (check_timeouts(&self->client)) {
+                            self->client.timeouts = 0;
+                            self->state = start_state;
+                        }
                     }
                     if (!self->exception) {
                         //  send HEARTBEAT

@@ -440,10 +440,14 @@ handle_set_verbose(client_t *self) {
 //  check_timeouts
 //
 
-static void
+static int
 check_timeouts(client_t *self) {
     self->timeouts++;
     if (self->timeouts == MAX_TIMEOUTS) {
-        engine_set_exception(self, destructor_event);
+        // engine_set_exception(self, destructor_event);
+        // Set exception to constructor event to the worker reconnexts
+        engine_set_exception(self, constructor_event);
+        return -1;
     }
+    return 0;
 }

@@ -430,7 +430,7 @@ s_client_execute(s_client_t *self, event_t event) {
                     if (!self->exception) {
                         //  handle ready
                         if (self->server->verbose) {
-                            zsys_debug("%s:         $ handle ready", self->log_prefix);
+                            //zsys_debug("%s:         $ handle ready", self->log_prefix);
                         }
                         handle_ready(&self->client);
                     }
@@ -453,7 +453,8 @@ s_client_execute(s_client_t *self, event_t event) {
                     if (!self->exception) {
                         //  reset timeouts
                         if (self->server->verbose) {
-                            // zsys_debug("%s:         $ reset timeouts", self->log_prefix);
+                            zsys_debug("%s:         $ reset timeouts for worker %s", self->log_prefix,
+                                       zframe_strhex(self->routing_id));
                         }
                         reset_timeouts(&self->client);
                     }
@@ -468,7 +469,8 @@ s_client_execute(s_client_t *self, event_t event) {
                     if (!self->exception) {
                         //  reset timeouts
                         if (self->server->verbose) {
-                            zsys_debug("%s:         $ reset timeouts", self->log_prefix);
+                            zsys_debug("%s:         $ reset timeouts for worker %s", self->log_prefix,
+                                       zframe_strhex(self->routing_id));
                         }
                         reset_timeouts(&self->client);
                     }
@@ -503,16 +505,16 @@ s_client_execute(s_client_t *self, event_t event) {
                         if (self->server->verbose) {
                             zsys_debug("%s:         $ check timeouts", self->log_prefix);
                         }
-                        int _rc = check_timeouts(&self->client);
-                        if (_rc < 0) {
-//                            mdp_msg_t *msg = self->server->message;
-//                            zframe_t *routing_id = mdp_msg_routing_id(msg);
-//                            assert(routing_id);
-                            char *identity = zframe_strhex(self->routing_id);
-                            zsys_debug("BROKER: Worker %s for service %s timed out", identity,
+                        if (check_timeouts(&self->client) < 0) {
+                            zsys_debug("BROKER: Worker %s for service %s timed out", zframe_strhex(self->routing_id),
                                        self->client.service_name);
                             delete_worker(&self->client);
                         }
+//                        if (self->client.timeouts > 0) {
+//                            zsys_debug("BROKER: Worker %s for service %s has missed %d heartbeats",
+//                                       zframe_strhex(self->routing_id), self->client.service_name,
+//                                       self->client.timeouts);
+//                        }
                     }
                     if (!self->exception) {
                         //  handle set wakeup
@@ -525,7 +527,8 @@ s_client_execute(s_client_t *self, event_t event) {
                     if (!self->exception) {
                         //  reset timeouts
                         if (self->server->verbose) {
-                            // zsys_debug("%s:         $ reset timeouts", self->log_prefix);
+                            zsys_debug("%s:         $ Got HEARTBEAT - reset timeouts for worker %s", self->log_prefix,
+                                       zframe_strhex(self->routing_id));
                         }
                         reset_timeouts(&self->client);
                     }
@@ -540,7 +543,8 @@ s_client_execute(s_client_t *self, event_t event) {
                     if (!self->exception) {
                         //  delete worker
                         if (self->server->verbose) {
-                            zsys_debug("%s:         $ delete worker", self->log_prefix);
+                            zsys_debug("%s:         $ delete worker %s", self->log_prefix,
+                                       zframe_strhex(self->routing_id));
                         }
                         delete_worker(&self->client);
                     }
