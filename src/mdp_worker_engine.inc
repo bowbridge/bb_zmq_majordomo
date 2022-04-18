@@ -373,7 +373,7 @@ s_client_execute(s_client_t *self, event_t event) {
                     if (!self->exception) {
                         //  send READY
                         if (mdp_worker_verbose) {
-                            zsys_debug("mdp_worker:            $ send READY");
+                            zsys_debug("mdp_worker:            $ send READY: worker %p", self);
                         }
                         mdp_worker_msg_set_id(self->message, MDP_WORKER_MSG_READY);
                         mdp_worker_msg_send(self->message, self->dealer);
@@ -454,9 +454,10 @@ s_client_execute(s_client_t *self, event_t event) {
                     if (!self->exception) {
                         //  check timeouts
                         if (mdp_worker_verbose) {
-                            zsys_debug("mdp_worker:            $ check timeouts");
+                            zsys_debug("mdp_worker:            $ check timeouts for %p", self);
                         }
                         if (check_timeouts(&self->client)) {
+                            zsys_debug("Broker heartbeats expired for worker %p", self);
                             self->client.timeouts = 0;
                             self->state = start_state;
                         }

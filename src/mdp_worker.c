@@ -443,9 +443,10 @@ handle_set_verbose(client_t *self) {
 static int
 check_timeouts(client_t *self) {
     self->timeouts++;
-    if (self->timeouts == MAX_TIMEOUTS) {
+    if (self->timeouts >= MAX_TIMEOUTS) {
         // engine_set_exception(self, destructor_event);
-        // Set exception to constructor event to the worker reconnexts
+        // Set exception to constructor event to the worker reconnects
+        zsock_disconnect(self->dealer, "%s", self->args->endpoint);
         engine_set_exception(self, constructor_event);
         return -1;
     }
