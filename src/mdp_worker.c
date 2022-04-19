@@ -299,12 +299,14 @@ received_heartbeat(client_t *self) {
 }
 
 
+
 //  ---------------------------------------------------------------------------
 //  destroy_worker
 //
 
 static void
 destroy_worker(client_t *self) {
+
     if (self->session_key_tx) {
         free(self->session_key_tx);
         self->session_key_tx = NULL;
