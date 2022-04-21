@@ -341,7 +341,7 @@ mdp_broker_test(bool verbose) {
 static void
 handle_mmi(client_t *self, const char *service_name) {
 
-    char *result = "501";
+    char *result = zsys_sprintf("501");
     zmsg_t *mmibody = mdp_msg_get_body(self->message);
 
     if (mmibody) {
@@ -389,7 +389,13 @@ handle_mmi(client_t *self, const char *service_name) {
             char *svc_lookup = zmsg_popstr(mmibody);
             if (svc_lookup) {
                 service_t *service = (service_t *) zhash_lookup(self->server->services, svc_lookup);
-                result = service && service->workers ? "200" : "404";
+                if (service && service->workers) {
+                    zstr_free(&result);
+                    result = zsys_sprintf("200");
+                } else {
+                    zstr_free(&result);
+                    result = zsys_sprintf("404");
+                }
                 zstr_free(&svc_lookup);
             }
         }
@@ -398,9 +404,11 @@ handle_mmi(client_t *self, const char *service_name) {
             if (svc_lookup) {
                 service_t *service = (service_t *) zhash_lookup(self->server->services, svc_lookup);
                 if (service) {
+                    zstr_free(&result);
                     result = zsys_sprintf("%d", service->workers);
                 } else {
-                    result = "-1";
+                    zstr_free(&result);
+                    result = zsys_sprintf("-1");
                 }
                 zstr_free(&svc_lookup);
             }
@@ -411,9 +419,11 @@ handle_mmi(client_t *self, const char *service_name) {
             if (svc_lookup) {
                 service_t *service = (service_t *) zhash_lookup(self->server->services, svc_lookup);
                 if (service) {
+                    zstr_free(&result);
                     result = zsys_sprintf("%d", zlist_size(service->waiting));
                 } else {
-                    result = "-1";
+                    zstr_free(&result);
+                    result = zsys_sprintf("-1");
                 }
                 zstr_free(&svc_lookup);
             }
