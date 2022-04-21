@@ -435,8 +435,9 @@ s_client_execute(s_client_t *self, event_t event) {
                             zsys_debug("mdp_client:            $ send final response");
                         send_final_response(&self->client);
                     }
-                    if (!self->exception)
+                    if (!self->exception) {
                         self->state = connected_state;
+                    }
                 } else if (self->event == set_verbose_event) {
                     if (!self->exception) {
                         //  handle set verbose
@@ -476,11 +477,14 @@ s_client_execute(s_client_t *self, event_t event) {
         }
         //  If we had an exception event, interrupt normal programming
         if (self->exception) {
-            if (mdp_client_verbose)
+            if (mdp_client_verbose) {
                 zsys_debug("mdp_client:            ! %s", s_event_name[self->exception]);
+            }
             self->next_event = self->exception;
-        } else if (mdp_client_verbose)
+        } else if (mdp_client_verbose) {
             zsys_debug("mdp_client:            > %s", s_state_name[self->state]);
+        }
+
     }
 }
 
@@ -576,10 +580,11 @@ s_client_handle_protocol(zloop_t *loop, zsock_t *reader, void *argument) {
     //  We will process as many messages as we can, to reduce the overhead
     //  of polling and the reactor:
     while (zsock_events(self->dealer) & ZMQ_POLLIN) {
-        if (mdp_client_msg_recv(self->message, self->dealer))
+        if (mdp_client_msg_recv(self->message, self->dealer)) {
             return -1;              //  Interrupted; exit zloop
-
-        s_client_execute(self, s_protocol_event(self, self->message));
+        }
+        event_t eventID = s_protocol_event(self, self->message);
+        s_client_execute(self, eventID);
         if (self->terminated)
             return -1;
     }

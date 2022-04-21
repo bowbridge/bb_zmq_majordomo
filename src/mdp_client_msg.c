@@ -39,7 +39,7 @@ struct _mdp_client_msg_t {
     byte *needle;                       //  Read/write pointer for serialization
     byte *ceiling;                      //  Valid upper limit for read pointer
     /* Service name   */
-    char service [256];
+    char service[256];
     /* Request body   */
     zmsg_t *body;
 };
@@ -48,13 +48,13 @@ struct _mdp_client_msg_t {
 //  Network data encoding macros
 
 //  Put a block of octets to the frame
-#define PUT_OCTETS(host,size) { \
+#define PUT_OCTETS(host, size) { \
     memcpy (self->needle, (host), size); \
     self->needle += size; \
 }
 
 //  Get a block of octets from the frame
-#define GET_OCTETS(host,size) { \
+#define GET_OCTETS(host, size) { \
     if (self->needle + size > self->ceiling) { \
         zsys_warning ("mdp_client_msg: GET_OCTETS failed"); \
         goto malformed; \
@@ -198,9 +198,8 @@ struct _mdp_client_msg_t {
 //  Create a new mdp_client_msg
 
 mdp_client_msg_t *
-mdp_client_msg_new (void)
-{
-    mdp_client_msg_t *self = (mdp_client_msg_t *) zmalloc (sizeof (mdp_client_msg_t));
+mdp_client_msg_new(void) {
+    mdp_client_msg_t *self = (mdp_client_msg_t *) zmalloc (sizeof(mdp_client_msg_t));
     return self;
 }
 
@@ -209,18 +208,17 @@ mdp_client_msg_new (void)
 //  Destroy the mdp_client_msg
 
 void
-mdp_client_msg_destroy (mdp_client_msg_t **self_p)
-{
+mdp_client_msg_destroy(mdp_client_msg_t **self_p) {
     assert (self_p);
     if (*self_p) {
         mdp_client_msg_t *self = *self_p;
 
         //  Free class properties
-        zframe_destroy (&self->routing_id);
-        zmsg_destroy (&self->body);
+        zframe_destroy(&self->routing_id);
+        zmsg_destroy(&self->body);
 
         //  Free object itself
-        free (self);
+        free(self);
         *self_p = NULL;
     }
 }
@@ -231,33 +229,32 @@ mdp_client_msg_destroy (mdp_client_msg_t **self_p)
 //  there was an error. Blocks if there is no message waiting.
 
 int
-mdp_client_msg_recv (mdp_client_msg_t *self, zsock_t *input)
-{
+mdp_client_msg_recv(mdp_client_msg_t *self, zsock_t *input) {
     assert (input);
-    
-    if (zsock_type (input) == ZMQ_ROUTER) {
-        zframe_destroy (&self->routing_id);
-        self->routing_id = zframe_recv (input);
-        if (!self->routing_id || !zsock_rcvmore (input)) {
-            zsys_warning ("mdp_client_msg: no routing ID");
+
+    if (zsock_type(input) == ZMQ_ROUTER) {
+        zframe_destroy(&self->routing_id);
+        self->routing_id = zframe_recv(input);
+        if (!self->routing_id || !zsock_rcvmore(input)) {
+            zsys_warning("mdp_client_msg: no routing ID");
             return -1;          //  Interrupted or malformed
         }
     }
     zmq_msg_t frame;
-    zmq_msg_init (&frame);
-    int size = zmq_msg_recv (&frame, zsock_resolve (input), 0);
+    zmq_msg_init(&frame);
+    int size = zmq_msg_recv(&frame, zsock_resolve(input), 0);
     if (size == -1) {
-        zsys_warning ("mdp_client_msg: interrupted");
+        zsys_warning("mdp_client_msg: interrupted");
         goto malformed;         //  Interrupted
     }
     //  Get and check protocol signature
-    self->needle = (byte *) zmq_msg_data (&frame);
-    self->ceiling = self->needle + zmq_msg_size (&frame);
-    
+    self->needle = (byte *) zmq_msg_data(&frame);
+    self->ceiling = self->needle + zmq_msg_size(&frame);
+
     uint16_t signature;
     GET_NUMBER2 (signature);
     if (signature != (0xAAA0 | 4)) {
-        zsys_warning ("mdp_client_msg: invalid signature");
+        zsys_warning("mdp_client_msg: invalid signature");
         //  TODO: discard invalid messages and loop, and return
         //  -1 only on interrupt
         goto malformed;         //  Interrupted
@@ -266,97 +263,94 @@ mdp_client_msg_recv (mdp_client_msg_t *self, zsock_t *input)
     GET_NUMBER1 (self->id);
 
     switch (self->id) {
-        case MDP_CLIENT_MSG_CLIENT_REQUEST:
-            {
-                char version [256];
-                GET_STRING (version);
-                if (strneq (version, "MDPC02")) {
-                    zsys_warning ("mdp_client_msg: version is invalid");
-                    goto malformed;
-                }
+        case MDP_CLIENT_MSG_CLIENT_REQUEST: {
+            char version[256];
+            GET_STRING (version);
+            if (strneq (version, "MDPC02")) {
+                zsys_warning("mdp_client_msg: version is invalid");
+                goto malformed;
             }
+        }
             {
                 byte messageid;
                 GET_NUMBER1 (messageid);
                 if (messageid != 1) {
-                    zsys_warning ("mdp_client_msg: messageid is invalid");
+                    zsys_warning("mdp_client_msg: messageid is invalid");
                     goto malformed;
                 }
             }
             GET_STRING (self->service);
             //  Get zero or more remaining frames
-            zmsg_destroy (&self->body);
-            if (zsock_rcvmore (input))
-                self->body = zmsg_recv (input);
+            zmsg_destroy(&self->body);
+            if (zsock_rcvmore(input))
+                self->body = zmsg_recv(input);
             else
-                self->body = zmsg_new ();
+                self->body = zmsg_new();
             break;
 
-        case MDP_CLIENT_MSG_CLIENT_PARTIAL:
-            {
-                char version [256];
-                GET_STRING (version);
-                if (strneq (version, "MDPC02")) {
-                    zsys_warning ("mdp_client_msg: version is invalid");
-                    goto malformed;
-                }
+        case MDP_CLIENT_MSG_CLIENT_PARTIAL: {
+            char version[256];
+            GET_STRING (version);
+            if (strneq (version, "MDPC02")) {
+                zsys_warning("mdp_client_msg: version is invalid");
+                goto malformed;
             }
+        }
             {
                 byte messageid;
                 GET_NUMBER1 (messageid);
                 if (messageid != 2) {
-                    zsys_warning ("mdp_client_msg: messageid is invalid");
+                    zsys_warning("mdp_client_msg: messageid is invalid");
                     goto malformed;
                 }
             }
             GET_STRING (self->service);
             //  Get zero or more remaining frames
-            zmsg_destroy (&self->body);
-            if (zsock_rcvmore (input))
-                self->body = zmsg_recv (input);
+            zmsg_destroy(&self->body);
+            if (zsock_rcvmore(input))
+                self->body = zmsg_recv(input);
             else
-                self->body = zmsg_new ();
+                self->body = zmsg_new();
             break;
 
-        case MDP_CLIENT_MSG_CLIENT_FINAL:
-            {
-                char version [256];
-                GET_STRING (version);
-                if (strneq (version, "MDPC02")) {
-                    zsys_warning ("mdp_client_msg: version is invalid");
-                    goto malformed;
-                }
+        case MDP_CLIENT_MSG_CLIENT_FINAL: {
+            char version[256];
+            GET_STRING (version);
+            if (strneq (version, "MDPC02")) {
+                zsys_warning("mdp_client_msg: version is invalid");
+                goto malformed;
             }
+        }
             {
                 byte messageid;
                 GET_NUMBER1 (messageid);
                 if (messageid != 3) {
-                    zsys_warning ("mdp_client_msg: messageid is invalid");
+                    zsys_warning("mdp_client_msg: messageid is invalid");
                     goto malformed;
                 }
             }
             GET_STRING (self->service);
             //  Get zero or more remaining frames
-            zmsg_destroy (&self->body);
-            if (zsock_rcvmore (input))
-                self->body = zmsg_recv (input);
-            else
-                self->body = zmsg_new ();
+            zmsg_destroy(&self->body);
+            if (zsock_rcvmore(input)) {
+                self->body = zmsg_recv(input);
+            } else
+                self->body = zmsg_new();
             break;
 
         default:
-            zsys_warning ("mdp_client_msg: bad message ID");
+            zsys_warning("mdp_client_msg: bad message ID");
             goto malformed;
     }
     //  Successful return
-    zmq_msg_close (&frame);
+    zmq_msg_close(&frame);
     return 0;
 
     //  Error returns
     malformed:
-        zsys_warning ("mdp_client_msg: mdp_client_msg malformed message, fail");
-        zmq_msg_close (&frame);
-        return -1;              //  Invalid message
+    zsys_warning("mdp_client_msg: mdp_client_msg malformed message, fail");
+    zmq_msg_close(&frame);
+    return -1;              //  Invalid message
 }
 
 
@@ -365,81 +359,76 @@ mdp_client_msg_recv (mdp_client_msg_t *self, zsock_t *input)
 //  OK, else -1.
 
 int
-mdp_client_msg_send (mdp_client_msg_t *self, zsock_t *output)
-{
+mdp_client_msg_send(mdp_client_msg_t *self, zsock_t *output) {
     assert (self);
     assert (output);
 
-    if (zsock_type (output) == ZMQ_ROUTER)
-        zframe_send (&self->routing_id, output, ZFRAME_MORE + ZFRAME_REUSE);
+    if (zsock_type(output) == ZMQ_ROUTER)
+        zframe_send(&self->routing_id, output, ZFRAME_MORE + ZFRAME_REUSE);
 
     size_t frame_size = 2 + 1;          //  Signature and message ID
     switch (self->id) {
         case MDP_CLIENT_MSG_CLIENT_REQUEST:
-            frame_size += 1 + strlen ("MDPC02");
+            frame_size += 1 + strlen("MDPC02");
             frame_size += 1;            //  messageid
-            frame_size += 1 + strlen (self->service);
+            frame_size += 1 + strlen(self->service);
             break;
         case MDP_CLIENT_MSG_CLIENT_PARTIAL:
-            frame_size += 1 + strlen ("MDPC02");
+            frame_size += 1 + strlen("MDPC02");
             frame_size += 1;            //  messageid
-            frame_size += 1 + strlen (self->service);
+            frame_size += 1 + strlen(self->service);
             break;
         case MDP_CLIENT_MSG_CLIENT_FINAL:
-            frame_size += 1 + strlen ("MDPC02");
+            frame_size += 1 + strlen("MDPC02");
             frame_size += 1;            //  messageid
-            frame_size += 1 + strlen (self->service);
+            frame_size += 1 + strlen(self->service);
             break;
     }
     //  Now serialize message into the frame
     zmq_msg_t frame;
-    zmq_msg_init_size (&frame, frame_size);
-    self->needle = (byte *) zmq_msg_data (&frame);
+    zmq_msg_init_size(&frame, frame_size);
+    self->needle = (byte *) zmq_msg_data(&frame);
     PUT_NUMBER2 (0xAAA0 | 4);
     PUT_NUMBER1 (self->id);
     bool send_body = false;
     size_t nbr_frames = 1;              //  Total number of frames to send
-    
+
     switch (self->id) {
-        case MDP_CLIENT_MSG_CLIENT_REQUEST:
-            PUT_STRING ("MDPC02");
+        case MDP_CLIENT_MSG_CLIENT_REQUEST: PUT_STRING ("MDPC02");
             PUT_NUMBER1 (1);
             PUT_STRING (self->service);
-            nbr_frames += self->body? zmsg_size (self->body): 1;
+            nbr_frames += self->body ? zmsg_size(self->body) : 1;
             send_body = true;
             break;
 
-        case MDP_CLIENT_MSG_CLIENT_PARTIAL:
-            PUT_STRING ("MDPC02");
+        case MDP_CLIENT_MSG_CLIENT_PARTIAL: PUT_STRING ("MDPC02");
             PUT_NUMBER1 (2);
             PUT_STRING (self->service);
-            nbr_frames += self->body? zmsg_size (self->body): 1;
+            nbr_frames += self->body ? zmsg_size(self->body) : 1;
             send_body = true;
             break;
 
-        case MDP_CLIENT_MSG_CLIENT_FINAL:
-            PUT_STRING ("MDPC02");
+        case MDP_CLIENT_MSG_CLIENT_FINAL: PUT_STRING ("MDPC02");
             PUT_NUMBER1 (3);
             PUT_STRING (self->service);
-            nbr_frames += self->body? zmsg_size (self->body): 1;
+            nbr_frames += self->body ? zmsg_size(self->body) : 1;
             send_body = true;
             break;
 
     }
     //  Now send the data frame
-    zmq_msg_send (&frame, zsock_resolve (output), --nbr_frames? ZMQ_SNDMORE: 0);
-    
+    zmq_msg_send(&frame, zsock_resolve(output), --nbr_frames ? ZMQ_SNDMORE : 0);
+
     //  Now send the body if necessary
     if (send_body) {
         if (self->body) {
-            zframe_t *frame = zmsg_first (self->body);
+            zframe_t *frame = zmsg_first(self->body);
             while (frame) {
-                zframe_send (&frame, output, ZFRAME_REUSE + (--nbr_frames? ZFRAME_MORE: 0));
-                frame = zmsg_next (self->body);
+                zframe_send(&frame, output, ZFRAME_REUSE + (--nbr_frames ? ZFRAME_MORE : 0));
+                frame = zmsg_next(self->body);
             }
-        }
-        else
-            zmq_send (zsock_resolve (output), NULL, 0, 0);
+        } else
+            zmq_send(zsock_resolve(output), NULL, 0, 0);
     }
     return 0;
 }
@@ -449,55 +438,54 @@ mdp_client_msg_send (mdp_client_msg_t *self, zsock_t *output)
 //  Print contents of message to stdout
 
 void
-mdp_client_msg_print (mdp_client_msg_t *self)
-{
+mdp_client_msg_print(mdp_client_msg_t *self) {
     assert (self);
     switch (self->id) {
         case MDP_CLIENT_MSG_CLIENT_REQUEST:
-            zsys_debug ("MDP_CLIENT_MSG_CLIENT_REQUEST:");
-            zsys_debug ("    version=mdpc02");
-            zsys_debug ("    messageid=1");
+            zsys_debug("MDP_CLIENT_MSG_CLIENT_REQUEST:");
+            zsys_debug("    version=mdpc02");
+            zsys_debug("    messageid=1");
             if (self->service)
-                zsys_debug ("    service='%s'", self->service);
+                zsys_debug("    service='%s'", self->service);
             else
-                zsys_debug ("    service=");
-            zsys_debug ("    body=");
+                zsys_debug("    service=");
+            zsys_debug("    body=");
             if (self->body)
-                zmsg_print (self->body);
+                zmsg_print(self->body);
             else
-                zsys_debug ("(NULL)");
+                zsys_debug("(NULL)");
             break;
-            
+
         case MDP_CLIENT_MSG_CLIENT_PARTIAL:
-            zsys_debug ("MDP_CLIENT_MSG_CLIENT_PARTIAL:");
-            zsys_debug ("    version=mdpc02");
-            zsys_debug ("    messageid=2");
+            zsys_debug("MDP_CLIENT_MSG_CLIENT_PARTIAL:");
+            zsys_debug("    version=mdpc02");
+            zsys_debug("    messageid=2");
             if (self->service)
-                zsys_debug ("    service='%s'", self->service);
+                zsys_debug("    service='%s'", self->service);
             else
-                zsys_debug ("    service=");
-            zsys_debug ("    body=");
+                zsys_debug("    service=");
+            zsys_debug("    body=");
             if (self->body)
-                zmsg_print (self->body);
+                zmsg_print(self->body);
             else
-                zsys_debug ("(NULL)");
+                zsys_debug("(NULL)");
             break;
-            
+
         case MDP_CLIENT_MSG_CLIENT_FINAL:
-            zsys_debug ("MDP_CLIENT_MSG_CLIENT_FINAL:");
-            zsys_debug ("    version=mdpc02");
-            zsys_debug ("    messageid=3");
+            zsys_debug("MDP_CLIENT_MSG_CLIENT_FINAL:");
+            zsys_debug("    version=mdpc02");
+            zsys_debug("    messageid=3");
             if (self->service)
-                zsys_debug ("    service='%s'", self->service);
+                zsys_debug("    service='%s'", self->service);
             else
-                zsys_debug ("    service=");
-            zsys_debug ("    body=");
+                zsys_debug("    service=");
+            zsys_debug("    body=");
             if (self->body)
-                zmsg_print (self->body);
+                zmsg_print(self->body);
             else
-                zsys_debug ("(NULL)");
+                zsys_debug("(NULL)");
             break;
-            
+
     }
 }
 
@@ -506,18 +494,16 @@ mdp_client_msg_print (mdp_client_msg_t *self)
 //  Get/set the message routing_id
 
 zframe_t *
-mdp_client_msg_routing_id (mdp_client_msg_t *self)
-{
+mdp_client_msg_routing_id(mdp_client_msg_t *self) {
     assert (self);
     return self->routing_id;
 }
 
 void
-mdp_client_msg_set_routing_id (mdp_client_msg_t *self, zframe_t *routing_id)
-{
+mdp_client_msg_set_routing_id(mdp_client_msg_t *self, zframe_t *routing_id) {
     if (self->routing_id)
-        zframe_destroy (&self->routing_id);
-    self->routing_id = zframe_dup (routing_id);
+        zframe_destroy(&self->routing_id);
+    self->routing_id = zframe_dup(routing_id);
 }
 
 
@@ -525,15 +511,13 @@ mdp_client_msg_set_routing_id (mdp_client_msg_t *self, zframe_t *routing_id)
 //  Get/set the mdp_client_msg id
 
 int
-mdp_client_msg_id (mdp_client_msg_t *self)
-{
+mdp_client_msg_id(mdp_client_msg_t *self) {
     assert (self);
     return self->id;
 }
 
 void
-mdp_client_msg_set_id (mdp_client_msg_t *self, int id)
-{
+mdp_client_msg_set_id(mdp_client_msg_t *self, int id) {
     self->id = id;
 }
 
@@ -541,8 +525,7 @@ mdp_client_msg_set_id (mdp_client_msg_t *self, int id)
 //  Return a printable command string
 
 const char *
-mdp_client_msg_command (mdp_client_msg_t *self)
-{
+mdp_client_msg_command(mdp_client_msg_t *self) {
     assert (self);
     switch (self->id) {
         case MDP_CLIENT_MSG_CLIENT_REQUEST:
@@ -562,21 +545,19 @@ mdp_client_msg_command (mdp_client_msg_t *self)
 //  Get/set the service field
 
 const char *
-mdp_client_msg_service (mdp_client_msg_t *self)
-{
+mdp_client_msg_service(mdp_client_msg_t *self) {
     assert (self);
     return self->service;
 }
 
 void
-mdp_client_msg_set_service (mdp_client_msg_t *self, const char *value)
-{
+mdp_client_msg_set_service(mdp_client_msg_t *self, const char *value) {
     assert (self);
     assert (value);
     if (value == self->service)
         return;
-    strncpy (self->service, value, 255);
-    self->service [255] = 0;
+    strncpy(self->service, value, 255);
+    self->service[255] = 0;
 }
 
 
@@ -584,8 +565,7 @@ mdp_client_msg_set_service (mdp_client_msg_t *self, const char *value)
 //  Get the body field without transferring ownership
 
 zmsg_t *
-mdp_client_msg_body (mdp_client_msg_t *self)
-{
+mdp_client_msg_body(mdp_client_msg_t *self) {
     assert (self);
     return self->body;
 }
@@ -593,8 +573,7 @@ mdp_client_msg_body (mdp_client_msg_t *self)
 //  Get the body field and transfer ownership to caller
 
 zmsg_t *
-mdp_client_msg_get_body (mdp_client_msg_t *self)
-{
+mdp_client_msg_get_body(mdp_client_msg_t *self) {
     zmsg_t *body = self->body;
     self->body = NULL;
     return body;
@@ -603,11 +582,10 @@ mdp_client_msg_get_body (mdp_client_msg_t *self)
 //  Set the body field, transferring ownership from caller
 
 void
-mdp_client_msg_set_body (mdp_client_msg_t *self, zmsg_t **msg_p)
-{
+mdp_client_msg_set_body(mdp_client_msg_t *self, zmsg_t **msg_p) {
     assert (self);
     assert (msg_p);
-    zmsg_destroy (&self->body);
+    zmsg_destroy(&self->body);
     self->body = *msg_p;
     *msg_p = NULL;
 }
@@ -618,85 +596,84 @@ mdp_client_msg_set_body (mdp_client_msg_t *self, zmsg_t **msg_p)
 //  Selftest
 
 int
-mdp_client_msg_test (bool verbose)
-{
-    printf (" * mdp_client_msg: ");
+mdp_client_msg_test(bool verbose) {
+    printf(" * mdp_client_msg: ");
 
     //  Silence an "unused" warning by "using" the verbose variable
-    if (verbose) {;}
+    if (verbose) { ; }
 
     //  @selftest
     //  Simple create/destroy test
-    mdp_client_msg_t *self = mdp_client_msg_new ();
+    mdp_client_msg_t *self = mdp_client_msg_new();
     assert (self);
-    mdp_client_msg_destroy (&self);
+    mdp_client_msg_destroy(&self);
 
     //  Create pair of sockets we can send through
     zsock_t *input = zsock_new (ZMQ_ROUTER);
     assert (input);
-    zsock_connect (input, "inproc://selftest-mdp_client_msg");
+    zsock_connect(input, "inproc://selftest-mdp_client_msg");
 
     zsock_t *output = zsock_new (ZMQ_DEALER);
     assert (output);
-    zsock_bind (output, "inproc://selftest-mdp_client_msg");
+    zsock_bind(output, "inproc://selftest-mdp_client_msg");
 
     //  Encode/send/decode and verify each message type
     int instance;
-    self = mdp_client_msg_new ();
-    mdp_client_msg_set_id (self, MDP_CLIENT_MSG_CLIENT_REQUEST);
+    self = mdp_client_msg_new();
+    mdp_client_msg_set_id(self, MDP_CLIENT_MSG_CLIENT_REQUEST);
 
-    mdp_client_msg_set_service (self, "Life is short but Now lasts for ever");
-    zmsg_t *client_request_body = zmsg_new ();
-    mdp_client_msg_set_body (self, &client_request_body);
-    zmsg_addstr (mdp_client_msg_body (self), "Hello, World");
+    mdp_client_msg_set_service(self, "Life is short but Now lasts for ever");
+    zmsg_t *client_request_body = zmsg_new();
+    mdp_client_msg_set_body(self, &client_request_body);
+    zmsg_addstr(mdp_client_msg_body(self), "Hello, World");
     //  Send twice
-    mdp_client_msg_send (self, output);
-    mdp_client_msg_send (self, output);
+    mdp_client_msg_send(self, output);
+    mdp_client_msg_send(self, output);
 
     for (instance = 0; instance < 2; instance++) {
-        mdp_client_msg_recv (self, input);
-        assert (mdp_client_msg_routing_id (self));
-        assert (streq (mdp_client_msg_service (self), "Life is short but Now lasts for ever"));
-        assert (zmsg_size (mdp_client_msg_body (self)) == 1);
+        mdp_client_msg_recv(self, input);
+        assert (mdp_client_msg_routing_id(self));
+        assert (streq(mdp_client_msg_service(self), "Life is short but Now lasts for ever"));
+        assert (zmsg_size(mdp_client_msg_body(self)) == 1);
     }
-    mdp_client_msg_set_id (self, MDP_CLIENT_MSG_CLIENT_PARTIAL);
+    mdp_client_msg_set_id(self, MDP_CLIENT_MSG_CLIENT_PARTIAL);
 
-    mdp_client_msg_set_service (self, "Life is short but Now lasts for ever");
-    zmsg_t *client_partial_body = zmsg_new ();
-    mdp_client_msg_set_body (self, &client_partial_body);
-    zmsg_addstr (mdp_client_msg_body (self), "Hello, World");
+    mdp_client_msg_set_service(self, "Life is short but Now lasts for ever");
+    zmsg_t *client_partial_body = zmsg_new();
+    mdp_client_msg_set_body(self, &client_partial_body);
+    zmsg_addstr(mdp_client_msg_body(self), "Hello, World");
     //  Send twice
-    mdp_client_msg_send (self, output);
-    mdp_client_msg_send (self, output);
+    mdp_client_msg_send(self, output);
+    mdp_client_msg_send(self, output);
 
     for (instance = 0; instance < 2; instance++) {
-        mdp_client_msg_recv (self, input);
-        assert (mdp_client_msg_routing_id (self));
-        assert (streq (mdp_client_msg_service (self), "Life is short but Now lasts for ever"));
-        assert (zmsg_size (mdp_client_msg_body (self)) == 1);
+        mdp_client_msg_recv(self, input);
+        assert (mdp_client_msg_routing_id(self));
+        assert (streq(mdp_client_msg_service(self), "Life is short but Now lasts for ever"));
+        assert (zmsg_size(mdp_client_msg_body(self)) == 1);
     }
-    mdp_client_msg_set_id (self, MDP_CLIENT_MSG_CLIENT_FINAL);
+    mdp_client_msg_set_id(self, MDP_CLIENT_MSG_CLIENT_FINAL);
 
-    mdp_client_msg_set_service (self, "Life is short but Now lasts for ever");
-    zmsg_t *client_final_body = zmsg_new ();
-    mdp_client_msg_set_body (self, &client_final_body);
-    zmsg_addstr (mdp_client_msg_body (self), "Hello, World");
+    mdp_client_msg_set_service(self, "Life is short but Now lasts for ever");
+    zmsg_t *client_final_body = zmsg_new();
+    mdp_client_msg_set_body(self, &client_final_body);
+    zmsg_addstr(mdp_client_msg_body(self), "Hello, World");
     //  Send twice
-    mdp_client_msg_send (self, output);
-    mdp_client_msg_send (self, output);
+    mdp_client_msg_send(self, output);
+    mdp_client_msg_send(self, output);
 
     for (instance = 0; instance < 2; instance++) {
-        mdp_client_msg_recv (self, input);
-        assert (mdp_client_msg_routing_id (self));
-        assert (streq (mdp_client_msg_service (self), "Life is short but Now lasts for ever"));
-        assert (zmsg_size (mdp_client_msg_body (self)) == 1);
+        mdp_client_msg_recv(self, input);
+        assert (mdp_client_msg_routing_id(self));
+        assert (streq(mdp_client_msg_service(self), "Life is short but Now lasts for ever"));
+        assert (zmsg_size(mdp_client_msg_body(self)) == 1);
     }
 
-    mdp_client_msg_destroy (&self);
+    mdp_client_msg_destroy(&self);
     zsock_destroy (&input);
     zsock_destroy (&output);
     //  @end
 
-    printf ("OK\n");
+    printf("OK\n");
     return 0;
 }

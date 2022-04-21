@@ -407,10 +407,13 @@ s_client_execute(s_client_t *self, event_t event) {
                     if (!self->exception) {
                         //  destroy worker
                         if (mdp_worker_verbose) {
-                            zsys_debug("mdp_worker:            $ destroy worker");
+                            zsys_debug("mdp_worker:            $ disconnect worker");
                         }
                         mdp_worker_msg_set_id(self->message, MDP_WORKER_MSG_DISCONNECT);
                         mdp_worker_msg_send(self->message, self->dealer);
+                        if (mdp_worker_verbose) {
+                            zsys_debug("mdp_worker:            $ destroy worker");
+                        }
                         destroy_worker(&self->client);
                     }
                 } else if (self->event == heartbeat_event) {
@@ -498,10 +501,13 @@ s_client_execute(s_client_t *self, event_t event) {
                     if (!self->exception) {
                         //  destroy worker
                         if (mdp_worker_verbose) {
-                            zsys_debug("mdp_worker:            $ destroy worker");
+                            zsys_debug("mdp_worker:            $ disconnect worker");
                         }
                         mdp_worker_msg_set_id(self->message, MDP_WORKER_MSG_DISCONNECT);
                         mdp_worker_msg_send(self->message, self->dealer);
+                        if (mdp_worker_verbose) {
+                            zsys_debug("mdp_worker:            $ destroy worker");
+                        }
                         destroy_worker(&self->client);
                     }
                 } else if (self->event == set_verbose_event) {
@@ -570,10 +576,13 @@ s_client_execute(s_client_t *self, event_t event) {
                     if (!self->exception) {
                         //  destroy worker
                         if (mdp_worker_verbose) {
-                            zsys_debug("mdp_worker:            $ destroy worker");
+                            zsys_debug("mdp_worker:            $ disconnect worker");
                         }
                         mdp_worker_msg_set_id(self->message, MDP_WORKER_MSG_DISCONNECT);
                         mdp_worker_msg_send(self->message, self->dealer);
+                        if (mdp_worker_verbose) {
+                            zsys_debug("mdp_worker:            $ destroy worker");
+                        }
                         destroy_worker(&self->client);
                     }
                 } else if (self->event == heartbeat_event) {
@@ -609,10 +618,13 @@ s_client_execute(s_client_t *self, event_t event) {
                     if (!self->exception) {
                         //  destroy worker
                         if (mdp_worker_verbose) {
-                            zsys_debug("mdp_worker:            $ destroy worker");
+                            zsys_debug("mdp_worker:            $ disconnect worker");
                         }
                         mdp_worker_msg_set_id(self->message, MDP_WORKER_MSG_DISCONNECT);
                         mdp_worker_msg_send(self->message, self->dealer);
+                        if (mdp_worker_verbose) {
+                            zsys_debug("mdp_worker:            $ destroy worker");
+                        }
                         destroy_worker(&self->client);
                     }
                 } else if (self->event == heartbeat_event) {

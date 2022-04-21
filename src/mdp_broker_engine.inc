@@ -335,6 +335,7 @@ s_protocol_event(mdp_msg_t *message) {
             return heartbeat_event;
             break;
         case MDP_MSG_DISCONNECT:
+            zsys_debug("************************** Got DISCONNECT MESSAGE");
             return disconnect_event;
             break;
         default:
@@ -603,6 +604,10 @@ s_client_execute(s_client_t *self, event_t event) {
             break;
         } else if (self->server->verbose) {
             //zsys_debug("%s:         > %s",                       self->log_prefix, s_state_name[self->state]);
+        }
+        zmsg_t *body = mdp_msg_get_body(self->server->message);
+        if (body) {
+            zmsg_destroy(&body);
         }
     }
 }

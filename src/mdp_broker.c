@@ -341,7 +341,7 @@ mdp_broker_test(bool verbose) {
 static void
 handle_mmi(client_t *self, const char *service_name) {
 
-    const char *result = "501";
+    char *result = "501";
     zmsg_t *mmibody = mdp_msg_get_body(self->message);
 
     if (mmibody) {
@@ -433,6 +433,7 @@ handle_mmi(client_t *self, const char *service_name) {
     mdp_msg_set_body(client_msg, &rep_body);
     mdp_msg_send(client_msg, self->server->router);
     mdp_msg_destroy(&client_msg);
+    zstr_free(&result);
 }
 
 static int s_broker_encrypt_body(zmsg_t *body, unsigned char *key) {
@@ -527,6 +528,7 @@ static int s_broker_decrypt_body(zmsg_t *body, unsigned char *key) {
                                 return -1;
                             }
                             zmsg_addmem(body, plaintext, plaintextlen);
+                            free(plaintext);
                             zframe_destroy(&frame);
                             // zsys_debug("BROKER: decrypted data frame #%d", (i + 1));
                             // increment the nonce for the next frame (if any)
@@ -551,6 +553,7 @@ static int s_broker_decrypt_body(zmsg_t *body, unsigned char *key) {
                 zframe_destroy(&frame);
                 return -1;
             }
+            free(plaintext);
         }
         return 0;
     }

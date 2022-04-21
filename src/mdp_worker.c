@@ -150,6 +150,7 @@ static int s_worker_decrypt_body(zmsg_t *body, unsigned char *key) {
                                 return -1;
                             }
                             zmsg_addmem(body, plaintext, plaintextlen);
+                            free(plaintext);
                             zframe_destroy(&frame);
                             // zsys_debug("WORKER: decrypted data frame #%d", (i + 1));
                             // increment the nonce for the next frame (if any)
@@ -173,6 +174,7 @@ static int s_worker_decrypt_body(zmsg_t *body, unsigned char *key) {
                 zframe_destroy(&frame);
                 return -1;
             }
+            free(plaintext);
         }
         return 0;
     }
@@ -273,7 +275,6 @@ signal_request(client_t *self) {
             s_worker_decrypt_body(body, self->session_key_rx);
         }
     }
-
     zsock_send(self->msgpipe, "sfm", "REQUEST",
                mdp_worker_msg_address(worker_msg),
                body);
@@ -335,7 +336,7 @@ destroy_worker(client_t *self) {
 
 static void
 prepare_ready_message(client_t *self) {
-    self->service = strdup(self->args->service); // TODO: is this needed?
+    self->service = strdup(self->args->service);
     mdp_worker_msg_set_service(self->message, self->service);
     if (NULL != self->auth_key && NULL != self->broker_pk) {
         // zsys_debug("mdp_worker:            $ preparing key exchange");
