@@ -342,7 +342,7 @@ static void
 handle_mmi(client_t *self, const char *service_name) {
 
     char *result = zsys_sprintf("501");
-    zmsg_t *mmibody = mdp_msg_get_body(self->message);
+    zmsg_t *mmibody = mdp_msg_body(self->message);
 
     if (mmibody) {
         zframe_t *f = zmsg_pop(mmibody);
@@ -428,8 +428,6 @@ handle_mmi(client_t *self, const char *service_name) {
                 zstr_free(&svc_lookup);
             }
         }
-
-        zmsg_destroy(&mmibody);
     }
 
     // Set routing id, messageid, service, body
@@ -634,8 +632,8 @@ handle_request(client_t *self) {
         }
         zframe_destroy(&f);
     }
-    mdp_msg_set_body(msg, &body);
 
+    mdp_msg_set_body(msg, &body);
     service_t *service = s_service_require(self->server, service_name);
     zlist_append(service->requests, msg);
     s_service_dispatch(service);

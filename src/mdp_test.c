@@ -141,32 +141,32 @@ main() {
     zmsg_destroy(&message);
 
 
-    {   /*
-    for (i = 0; i < 1; i++) {
-        char *result = NULL;
-                char *_cmd = NULL;
-zsock_t *client_sock = mdp_client_msgpipe(client);
-          zmsg_t *mmi_msg = NULL;
-          mmi_msg = zmsg_new();
-          zmsg_addstr(mmi_msg, service);
-          mdp_client_request(client, "mmi.workers", &mmi_msg);
-          zsock_recv(client_sock, "sm", &_cmd, &mmi_msg);
-          free(_cmd);
-          zmsg_destroy(&mmi_msg);
+    {
+        for (i = 0; i < 10; i++) {
+            char *result = NULL;
+            char *_cmd = NULL;
+            zsock_t *client_sock = mdp_client_msgpipe(client);
+            zmsg_t *mmi_msg = NULL;
+            mmi_msg = zmsg_new();
+            zmsg_addstr(mmi_msg, service);
+            mdp_client_request(client, "mmi.workers", &mmi_msg);
+            zsock_recv(client_sock, "ss", &_cmd, &result);
+            free(_cmd);
+            zmsg_destroy(&mmi_msg);
 
-              char *waiting = NULL;
-              mmi_msg = zmsg_new();
-              zmsg_addstr(mmi_msg, service);
-              mdp_client_request(client, "mmi.waiting", &mmi_msg);
-              zsock_recv(client_sock, "ss", &_cmd, &waiting);
-              zsys_debug("*************************************  Workers: %s, Waiting: %s", result, waiting);
-              free(_cmd);
-              free(waiting);
-                      if (result)
-            free(result);
+            char *waiting = NULL;
+            mmi_msg = zmsg_new();
+            zmsg_addstr(mmi_msg, service);
+            mdp_client_request(client, "mmi.waiting", &mmi_msg);
+            zsock_recv(client_sock, "ss", &_cmd, &waiting);
+            zsys_debug("*************************************  Workers: %s, Waiting: %s", result, waiting);
+            free(_cmd);
+            free(waiting);
+            if (result)
+                free(result);
+            sleep(1);
+        }
 
-    }
-    */
 
         /*   mdp_worker_destroy(&workers[0]);
            mdp_worker_destroy(&workers[1]);
