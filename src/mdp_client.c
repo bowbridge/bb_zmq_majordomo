@@ -260,15 +260,15 @@ disconnect_from_broker(client_t *self) {
 static int s_client_decrypt_body(zmsg_t *body, unsigned char *key) {
     //decrypt frames one by one
     int i;
-    int rc = -1;
+    int rc = 0;
     unsigned char nonce[crypto_secretbox_NONCEBYTES];
     zframe_t *f = zmsg_pop(body);
     if (f) {
         memcpy(nonce, zframe_data(f), crypto_secretbox_NONCEBYTES);
         zframe_destroy(&f);
         int numframes = (int) zmsg_size(body) - 1;
-        /*zsys_debug("********** CLIENT: Decrypting %d frames  with key %2x %2x ... %2x %2x ", numframes, key[0], key[1],
-                   key[crypto_kx_SESSIONKEYBYTES - 2], key[crypto_kx_SESSIONKEYBYTES - 1]);*/
+        zsys_debug("********** CLIENT: Decrypting %d frames  with key %2x %2x ... %2x %2x ", numframes, key[0], key[1],
+                   key[crypto_kx_SESSIONKEYBYTES - 2], key[crypto_kx_SESSIONKEYBYTES - 1]);
         for (i = 0; i < numframes; i++) {
             f = zmsg_pop(body);
             if (f) {
@@ -279,7 +279,7 @@ static int s_client_decrypt_body(zmsg_t *body, unsigned char *key) {
                 if (frame_plain) {
                     if (0 == crypto_secretbox_open_easy(frame_plain, frame_encrypted, frame_encrypted_len,
                                                         nonce, key)) {
-                        //zsys_debug("********** Decrypted frame #%d", i);
+                        zsys_debug("********** Decrypted frame #%d", i);
                         zmsg_addmem(body, frame_plain, frame_plain_len);
                     } else {
                         zsys_error("Decryption failed!");
@@ -318,6 +318,7 @@ static int s_client_decrypt_body(zmsg_t *body, unsigned char *key) {
     } else {
         rc = -1;
     }
+    zsys_debug("CLIENT: Decryption %s", rc == 0 ? "OK" : "FAILED!");
     return rc;
 }
 

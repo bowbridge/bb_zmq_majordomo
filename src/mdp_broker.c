@@ -772,22 +772,20 @@ static void
 handle_ready(client_t *self) {
     mdp_msg_t *msg = self->message;
     const char *service_name = mdp_msg_service(msg);
-    //  zsys_debug("handle_ready: service=%s\n", service_name);
     zframe_t *routing_id = mdp_msg_routing_id(msg);
     assert(routing_id);
     char *identity = zframe_strhex(routing_id);
-    zsys_debug("handle_ready: worker %s reports READY for service=%s\n", identity, service_name);
+    zsys_debug("handle_ready: worker %s reports READY for service=%s", identity, service_name);
 
     int worker_ready = (zhash_lookup(self->server->workers, identity) != NULL);
     free(identity);
 
     worker_t *worker = s_worker_require(self->server, routing_id);
-
     if (worker_ready) // Not first command in session.
     {
         s_worker_delete(worker, 1);
     } else { // Check if we need to perform the key exchange
-        zmsg_t *ready_body = mdp_msg_get_body(self->message);
+        zmsg_t *ready_body = mdp_msg_body(msg);
         if (ready_body) {
             zframe_t *f = zmsg_pop(ready_body); // empty frame
             if (f)
@@ -802,8 +800,9 @@ handle_ready(client_t *self) {
                         int res = zlist_exists(self->server->known_psks, authkey);
                         free(authkey);
                         if (0 == res) {
-                            //  zsys_debug("unknown worker Authkey");
+                            zsys_debug("unknown worker Authkey");
                             s_worker_delete(worker, 1);
+                            //zmsg_destroy(&ready_body);
                             return;
                         }
                         zframe_destroy(&f);
@@ -825,7 +824,6 @@ handle_ready(client_t *self) {
                                         zsys_error("Failed to create session keys");
                                         s_worker_delete(worker, 1);
                                         free(worker_kx_pk);
-                                        zmsg_destroy(&ready_body);
                                         return;
                                     }
                                 }
@@ -837,9 +835,8 @@ handle_ready(client_t *self) {
                     zsys_error("No known_worker keys loaded");
                 }
             }
-            zmsg_destroy(&ready_body);
-        }
 
+        }
         service_t *service = s_service_require(self->server, service_name);
         worker->service = service;
         zlist_append(service->broker->waiting, worker);
