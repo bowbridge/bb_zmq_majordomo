@@ -355,7 +355,7 @@ send_partial_response(client_t *self) {
 
 static void
 send_final_response(client_t *self) {
-    zmsg_t *body = mdp_client_msg_get_body(self->message);
+    zmsg_t *body = mdp_client_msg_body(self->message);
     // Check if the response is encrypted
     zframe_t *frame = zmsg_pop(body);
     if (frame) {
