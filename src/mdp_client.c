@@ -192,10 +192,13 @@ send_request_to_broker(client_t *self) {
                     size_t data_encrypted_len = crypto_secretbox_MACBYTES + data_plain_len;
                     unsigned char *data_encrypted = (unsigned char *) zmalloc(data_encrypted_len);
                     if (data_encrypted) {
+                        zsys_debug("CLIENT: Encrypting with key %2x %2x ... %2x %2x ", self->session_key_tx[0],
+                                   self->session_key_tx[1], self->session_key_tx[crypto_kx_SESSIONKEYBYTES - 2],
+                                   self->session_key_tx[crypto_kx_SESSIONKEYBYTES - 1]);
                         res = crypto_secretbox_easy(data_encrypted, data_plain,
                                                     data_plain_len,
                                                     nonce, self->session_key_tx);
-                        // zsys_debug("CLIENT: Encrypting frame %d - %s", i + 1, res == 0 ? "SUCESS" : "ERROR");
+                        zsys_debug("CLIENT: Encrypting frame %d - %s", i + 1, res == 0 ? "SUCESS" : "ERROR");
                         if (0 == res) {
                             zmsg_addmem(body_encrypted, data_encrypted, data_encrypted_len);
                             free(data_encrypted);
@@ -257,68 +260,77 @@ disconnect_from_broker(client_t *self) {
 
 }
 
-static int s_client_decrypt_body(zmsg_t *body, unsigned char *key) {
-    //decrypt frames one by one
+static zmsg_t *s_client_decrypt_body(mdp_client_msg_t *msg, unsigned char *key) {
     int i;
-    int rc = -1;
-    unsigned char nonce[crypto_secretbox_NONCEBYTES];
-    zframe_t *f = zmsg_pop(body);
-    if (f) {
-        memcpy(nonce, zframe_data(f), crypto_secretbox_NONCEBYTES);
-        zframe_destroy(&f);
-        int numframes = (int) zmsg_size(body) - 1;
-        /*zsys_debug("********** CLIENT: Decrypting %d frames  with key %2x %2x ... %2x %2x ", numframes, key[0], key[1],
-                   key[crypto_kx_SESSIONKEYBYTES - 2], key[crypto_kx_SESSIONKEYBYTES - 1]);*/
-        for (i = 0; i < numframes; i++) {
-            f = zmsg_pop(body);
+    zmsg_t *body = mdp_client_msg_body(msg);
+    // Check if the response is encrypted
+    zframe_t *security_id = zmsg_pop(body);
+    if (security_id) {
+        if (zframe_streq(security_id, "BB_MDP_SECURE")) {
+            //decrypt frames one by one
+            unsigned char nonce[crypto_secretbox_NONCEBYTES];
+            zframe_t *f = zmsg_pop(body);
             if (f) {
-                unsigned char *frame_encrypted = zframe_data(f);
-                size_t frame_encrypted_len = zframe_size(f);
-                size_t frame_plain_len = frame_encrypted_len - crypto_secretbox_MACBYTES;
-                unsigned char *frame_plain = (unsigned char *) zmalloc(frame_plain_len);
-                if (frame_plain) {
-                    if (0 == crypto_secretbox_open_easy(frame_plain, frame_encrypted, frame_encrypted_len,
-                                                        nonce, key)) {
-                        //zsys_debug("********** Decrypted frame #%d", i);
-                        zmsg_addmem(body, frame_plain, frame_plain_len);
+                memcpy(nonce, zframe_data(f), crypto_secretbox_NONCEBYTES);
+                zframe_destroy(&f);
+                int numframes = (int) zmsg_size(body) - 1;
+                /*zsys_debug("********** CLIENT: Decrypting %d frames  with key %2x %2x ... %2x %2x ", numframes, key[0], key[1],
+                           key[crypto_kx_SESSIONKEYBYTES - 2], key[crypto_kx_SESSIONKEYBYTES - 1]);*/
+                for (i = 0; i < numframes; i++) {
+                    f = zmsg_pop(body);
+                    if (f) {
+                        unsigned char *frame_encrypted = zframe_data(f);
+                        size_t frame_encrypted_len = zframe_size(f);
+                        size_t frame_plain_len = frame_encrypted_len - crypto_secretbox_MACBYTES;
+                        unsigned char *frame_plain = (unsigned char *) zmalloc(frame_plain_len);
+                        if (frame_plain) {
+                            if (0 == crypto_secretbox_open_easy(frame_plain, frame_encrypted, frame_encrypted_len,
+                                                                nonce, key)) {
+                                zsys_debug("********** Decrypted frame #%d", i);
+                                zmsg_addmem(body, frame_plain, frame_plain_len);
+                            } else {
+                                zsys_error("Decryption failed!");
+                            }
+                            free(frame_plain);
+                            frame_plain = NULL;
+                        } else {
+                            zmsg_destroy(&body);
+                            return NULL;
+                        }
+                        zframe_destroy(&f);
+                        // increment the nonce for the next frame (if any)
+                        sodium_increment(nonce, crypto_secretbox_NONCEBYTES);
                     } else {
-                        zsys_error("Decryption failed!");
+                        return NULL;
                     }
-                    free(frame_plain);
-                    frame_plain = NULL;
-                } else {
-                    zmsg_destroy((&body));
-                    return -1;
+                }
+
+                // get/decrypt "Canary" frame
+                f = zmsg_pop(body);
+                size_t ciphertextlen = zframe_size(f);
+                size_t plaintextlen = ciphertextlen - crypto_secretbox_MACBYTES;
+                unsigned char *plaintext = (unsigned char *) zmalloc(plaintextlen);
+                int res = crypto_secretbox_open_easy(plaintext, zframe_data(f),
+                                                     (unsigned long long int) ciphertextlen, nonce,
+                                                     key);
+                if (0 != res ||
+                    0 != memcmp(plaintext, "BB_MDP_SECURE", strlen("BB_MDP_SECURE"))) {
+                    zsys_error("CLIENT: Decryption error - Check failed");
+                    zmsg_destroy(&body);
+                }
+                if (plaintext) {
+                    free(plaintext);
                 }
                 zframe_destroy(&f);
-                // increment the nonce for the next frame (if any)
-                sodium_increment(nonce, crypto_secretbox_NONCEBYTES);
-            } else {
-                return -1;
-            }
-        }
 
-        // get/decrypt "Canary" frame
-        f = zmsg_pop(body);
-        size_t ciphertextlen = zframe_size(f);
-        size_t plaintextlen = ciphertextlen - crypto_secretbox_MACBYTES;
-        unsigned char *plaintext = (unsigned char *) zmalloc(plaintextlen);
-        int res = crypto_secretbox_open_easy(plaintext, zframe_data(f),
-                                             (unsigned long long int) ciphertextlen, nonce,
-                                             key);
-        if (0 != res ||
-            0 != memcmp(plaintext, "BB_MDP_SECURE", strlen("BB_MDP_SECURE"))) {
-            zsys_error("CLIENT: Decryption error - Check failed");
-            rc = -1;
+            } else {
+                zmsg_destroy(&body);
+            }
+        } else {
+            //  zsys_debug("CLIENT: got Plain message");
         }
-        if (plaintext) {
-            free(plaintext);
-        }
-        zframe_destroy(&f);
-    } else {
-        rc = -1;
     }
-    return rc;
+    return body;
 }
 
 
@@ -328,22 +340,7 @@ static int s_client_decrypt_body(zmsg_t *body, unsigned char *key) {
 
 static void
 send_partial_response(client_t *self) {
-    zmsg_t *body = mdp_client_msg_get_body(self->message);
-    // Check if the response is encrypted
-    zframe_t *frame = zmsg_pop(body);
-    if (frame) {
-        if (zframe_streq(frame, "BB_MDP_SECURE")) {
-            // zsys_debug("Encrypted message");
-            s_client_decrypt_body(body, self->session_key_rx);
-        } else if (zframe_streq(frame, "BB_MDP_PLAIN")) {
-            //  zsys_debug("Plain message");
-        } else {
-            zsys_error("Invalid partial response message (missing security identifier)");
-            zframe_destroy(&frame);
-            return;
-        }
-        zframe_destroy(&frame);
-    }
+    zmsg_t *body = s_client_decrypt_body(self->message, self->session_key_rx);
     zsock_send(self->msgpipe, "sm", "PARTIAL", body);
 }
 
@@ -354,23 +351,8 @@ send_partial_response(client_t *self) {
 
 static void
 send_final_response(client_t *self) {
-    zmsg_t *body = mdp_client_msg_get_body(self->message);
-    // Check if the response is encrypted
-    zframe_t *frame = zmsg_pop(body);
-    if (frame) {
-        if (zframe_streq(frame, "BB_MDP_SECURE")) {
-            // zsys_debug("CLIENT: got Encrypted message");
-            s_client_decrypt_body(body, self->session_key_rx);
-        } else if (zframe_streq(frame, "BB_MDP_PLAIN")) {
-            //  zsys_debug("CLIENT: got Plain message");
-        } else {
-            zsys_error("Invalid final response message (missing security identifier: %s)", zframe_strhex(frame));
-            zmsg_dump(body);
-            zframe_destroy(&frame);
-            return;
-        }
-        zframe_destroy(&frame);
-    }
+    zmsg_t *body = s_client_decrypt_body(self->message, self->session_key_rx);
+    //zmsg_t *body = mdp_client_msg_get_body(self->message);
     zsock_send(self->msgpipe, "sm", "FINAL", body);
 }
 
