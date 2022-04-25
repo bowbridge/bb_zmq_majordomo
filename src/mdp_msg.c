@@ -220,8 +220,6 @@ mdp_msg_destroy(mdp_msg_t **self_p) {
         //  Free class properties
         zframe_destroy(&self->routing_id);
         if (self->body) {
-            zsys_debug("Destroying body at %p (%d bytes) in %s:%d", self->body, zmsg_content_size(self->body), __FILE__,
-                       __LINE__);
             zmsg_destroy(&self->body);
         }
         zframe_destroy(&self->address);
@@ -292,16 +290,12 @@ mdp_msg_recv(mdp_msg_t *self, zsock_t *input) {
             GET_STRING (self->service);
             //  Get zero or more remaining frames
             if (self->body) {
-                zsys_debug("Destroying body at %p (%d bytes) in %s:%d", self->body, zmsg_content_size(self->body),
-                           __FILE__, __LINE__);
                 zmsg_destroy(&self->body);
             }
             if (zsock_rcvmore(input))
                 self->body = zmsg_recv(input);
             else
                 self->body = zmsg_new();
-            zsys_debug("body allocated (%d bytes in %d frames) for MDP_MSG_CLIENT_REQUEST to %p in %s:%d",
-                       zmsg_content_size(self->body), zmsg_size(self->body), self->body, __FILE__, __LINE__);
             break;
 
         case MDP_MSG_CLIENT_PARTIAL: {
@@ -323,15 +317,12 @@ mdp_msg_recv(mdp_msg_t *self, zsock_t *input) {
             GET_STRING (self->service);
             //  Get zero or more remaining frames
             if (self->body) {
-                zsys_debug("Destroying body at %p (%d bytes) in %s:%d", self->body, zmsg_content_size(self->body),
-                           __FILE__, __LINE__);
                 zmsg_destroy(&self->body);
             }
             if (zsock_rcvmore(input))
                 self->body = zmsg_recv(input);
             else
                 self->body = zmsg_new();
-            zsys_debug("body allocated for MDP_MSG_CLIENT_PARTIAL to %p in %s:%d", self->body, __FILE__, __LINE__);
             break;
 
         case MDP_MSG_CLIENT_FINAL: {
@@ -353,14 +344,12 @@ mdp_msg_recv(mdp_msg_t *self, zsock_t *input) {
             GET_STRING (self->service);
             //  Get zero or more remaining frames
             if (self->body) {
-                zsys_debug("Destroying body for MDP_MSG_CLIENT_FINAL at %p in %s:%d", self->body, __FILE__, __LINE__);
                 zmsg_destroy(&self->body);
             }
             if (zsock_rcvmore(input))
                 self->body = zmsg_recv(input);
             else
                 self->body = zmsg_new();
-            zsys_debug("body allocated for MDP_MSG_CLIENT_FINAL to %p in %s:%d", self->body, __FILE__, __LINE__);
             break;
 
         case MDP_MSG_READY: {
@@ -382,13 +371,10 @@ mdp_msg_recv(mdp_msg_t *self, zsock_t *input) {
             GET_STRING (self->service);
             //  Get zero or more remaining frames
             if (self->body) {
-                zsys_debug("Destroying body at %p (%d bytes) in %s:%d", self->body, zmsg_content_size(self->body),
-                           __FILE__, __LINE__);
                 zmsg_destroy(&self->body);
             }
             if (zsock_rcvmore(input))
                 self->body = zmsg_recv(input);
-            zsys_debug("body allocated fo MDP_MSG_READY to %p in %s:%d", self->body, __FILE__, __LINE__);
             break;
 
         case MDP_MSG_WORKER_REQUEST: {
@@ -423,15 +409,13 @@ mdp_msg_recv(mdp_msg_t *self, zsock_t *input) {
             self->empty = zframe_recv(input);
             //  Get zero or more remaining frames
             if (self->body) {
-                zsys_debug("Destroying body at %p (%d bytes) in %s:%d", self->body, zmsg_content_size(self->body),
-                           __FILE__, __LINE__);
+
                 zmsg_destroy(&self->body);
             }
             if (zsock_rcvmore(input))
                 self->body = zmsg_recv(input);
             else
                 self->body = zmsg_new();
-            zsys_debug("body allocated for MDP_MSG_CLIENT_FINAL to %p in %s:%d", self->body, __FILE__, __LINE__);
             break;
 
         case MDP_MSG_WORKER_PARTIAL: {
@@ -466,14 +450,12 @@ mdp_msg_recv(mdp_msg_t *self, zsock_t *input) {
             self->empty = zframe_recv(input);
             //  Get zero or more remaining frames
             if (self->body) {
-                zsys_debug("Destroying body for MDP_MSG_WORKER_PARTIAL at %p in %s:%d", self->body, __FILE__, __LINE__);
                 zmsg_destroy(&self->body);
             }
             if (zsock_rcvmore(input))
                 self->body = zmsg_recv(input);
             else
                 self->body = zmsg_new();
-            zsys_debug("body allocated to %p in %s:%d", self->body, __FILE__, __LINE__);
             break;
 
         case MDP_MSG_WORKER_FINAL: {
@@ -508,15 +490,12 @@ mdp_msg_recv(mdp_msg_t *self, zsock_t *input) {
             self->empty = zframe_recv(input);
             //  Get zero or more remaining frames
             if (self->body) {
-                zsys_debug("Destroying body at %p (%d bytes) in %s:%d", self->body, zmsg_content_size(self->body),
-                           __FILE__, __LINE__);
                 zmsg_destroy(&self->body);
             }
             if (zsock_rcvmore(input))
                 self->body = zmsg_recv(input);
             else
                 self->body = zmsg_new();
-            zsys_debug("body allocated for MDP_MSG_WORKER_FINAL to %p in %s:%d", self->body, __FILE__, __LINE__);
             break;
 
         case MDP_MSG_HEARTBEAT: {
@@ -1007,8 +986,6 @@ mdp_msg_set_body(mdp_msg_t *self, zmsg_t **msg_p) {
     assert (self);
     assert (msg_p);
     if (self->body) {
-        zsys_debug("Destroying body at %p (%d bytes) in %s:%d", self->body, zmsg_content_size(self->body), __FILE__,
-                   __LINE__);
         zmsg_destroy(&self->body);
     }
     self->body = *msg_p;

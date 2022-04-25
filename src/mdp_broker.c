@@ -132,7 +132,7 @@ s_worker_require(server_t *self, zframe_t *address) {
 
         zhash_insert(self->workers, identity, worker);
         zhash_freefn(self->workers, identity, s_worker_destroy);
-        zsys_debug("Worker %s created", worker->identity);
+        // zsys_debug("Worker %s created", worker->identity);
     } else {
         zsys_warning("Worker %s existed", identity);
         free(identity);
@@ -144,7 +144,7 @@ static void
 s_worker_destroy(void *argument) {
     worker_t *self = (worker_t *) argument;
     zframe_destroy(&self->address);
-    zsys_debug("destroying worker %s", self->identity);
+    // zsys_debug("destroying worker %s", self->identity);
     free(self->identity);
     if (self->session_key_tx)
         free(self->session_key_tx);
@@ -773,7 +773,7 @@ handle_ready(client_t *self) {
     zframe_t *routing_id = mdp_msg_routing_id(msg);
     assert(routing_id);
     char *identity = zframe_strhex(routing_id);
-    zsys_debug("handle_ready: worker %s reports READY for service=%s", identity, service_name);
+    // zsys_debug("handle_ready: worker %s reports READY for service=%s", identity, service_name);
 
     int worker_ready = (zhash_lookup(self->server->workers, identity) != NULL);
     free(identity);
@@ -798,7 +798,7 @@ handle_ready(client_t *self) {
                         int res = zlist_exists(self->server->known_psks, authkey);
                         free(authkey);
                         if (0 == res) {
-                            zsys_debug("unknown worker Authkey");
+                            zsys_warning("Worker authenticated with an unknown key");
                             s_worker_delete(worker, 1);
                             //zmsg_destroy(&ready_body);
                             return;

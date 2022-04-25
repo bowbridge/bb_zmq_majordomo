@@ -335,7 +335,6 @@ s_protocol_event(mdp_msg_t *message) {
             return heartbeat_event;
             break;
         case MDP_MSG_DISCONNECT:
-            zsys_debug("************************** Got DISCONNECT MESSAGE");
             return disconnect_event;
             break;
         default:
@@ -446,7 +445,7 @@ s_client_execute(s_client_t *self, event_t event) {
                     if (!self->exception) {
                         //  handle request
                         if (self->server->verbose) {
-                            zsys_debug("%s:         $ handle request", self->log_prefix);
+                            // zsys_debug("%s:         $ handle request", self->log_prefix);
                         }
                         handle_request(&self->client);
                     }
@@ -507,8 +506,7 @@ s_client_execute(s_client_t *self, event_t event) {
                             zsys_debug("%s:         $ check timeouts", self->log_prefix);
                         }
                         if (check_timeouts(&self->client) < 0) {
-                            zsys_debug("BROKER: Worker %s for service %s timed out", zframe_strhex(self->routing_id),
-                                       self->client.service_name);
+                            //zsys_debug("BROKER: Worker %s for service %s timed out", zframe_strhex(self->routing_id),self->client.service_name);
                             delete_worker(&self->client);
                         }
 //                        if (self->client.timeouts > 0) {
