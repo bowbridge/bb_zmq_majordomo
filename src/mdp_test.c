@@ -22,8 +22,8 @@ main() {
     //char *endpoint_bind = "tcp://*:9002";
 
     char *endpoint_bind = endpoint;
-    mdp_client_t *client = mdp_client_new(endpoint, (unsigned char *) BROKER_PK);
-    //mdp_client_t *client = mdp_client_new(endpoint, NULL);
+    //mdp_client_t *client = mdp_client_new(endpoint, (unsigned char *) BROKER_PK);
+    mdp_client_t *client = mdp_client_new(endpoint, NULL);
     //mdp_client_set_verbose(client);
 
     zactor_t *broker = zactor_new(mdp_broker, "server");
@@ -38,8 +38,8 @@ main() {
     mdp_worker_t *workers[NUM_WORKERS];
     int i = 0;
     for (i = 0; i < NUM_WORKERS; i++) {
-        // workers[i] = mdp_worker_new(endpoint, service, NULL,NULL);
-        workers[i] = mdp_worker_new(endpoint, service, (unsigned char *) WORKER_PK, (unsigned char *) BROKER_PK);
+        workers[i] = mdp_worker_new(endpoint, service, NULL, NULL);
+        //workers[i] = mdp_worker_new(endpoint, service, (unsigned char *) WORKER_PK, (unsigned char *) BROKER_PK);
         //mdp_worker_set_verbose(workers[i]);
     }
     {
@@ -76,6 +76,7 @@ main() {
 //    zmsg_destroy(&_message);
     }
 
+    sleep(1);
     zmsg_t *msg = zmsg_new();
     assert(msg);
     int res = zmsg_addstrf(msg, "This is a super-secret message");
@@ -159,7 +160,7 @@ main() {
             zmsg_addstr(mmi_msg, service);
             mdp_client_request(client, "mmi.waiting", &mmi_msg);
             zsock_recv(client_sock, "ss", &_cmd, &waiting);
-            zsys_debug("*************************************  Workers: %s, Waiting: %s", result, waiting);
+            //zsys_debug("*************************************  Workers: %s, Waiting: %s", result, waiting);
             free(_cmd);
             free(waiting);
             if (result)
