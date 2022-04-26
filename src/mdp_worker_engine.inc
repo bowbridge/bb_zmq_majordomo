@@ -697,9 +697,11 @@ s_client_handle_cmdpipe(zloop_t *loop, zsock_t *reader, void *argument) {
         zsock_recv(self->cmdpipe, "ssss", &self->args.endpoint, &self->args.service, &self->client.auth_key,
                    &self->client.broker_pk);
         if (0 == strlen((char *) self->client.auth_key)) {
+            free(self->client.auth_key);
             self->client.auth_key = NULL;
         }
         if (0 == strlen((char *) self->client.broker_pk)) {
+            free(self->client.broker_pk);
             self->client.broker_pk = NULL;
         }
 

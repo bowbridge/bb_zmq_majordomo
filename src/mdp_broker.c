@@ -111,9 +111,9 @@ static void s_worker_destroy(void *argument);
 
 static void s_worker_delete(worker_t *self, int disconnect);
 
-static int s_broker_encrypt_body(zmsg_t *body, unsigned char *key);
+static int s_broker_encrypt_body_frames(zmsg_t *body, unsigned char *key);
 
-static int s_broker_decrypt_body(zmsg_t *body, unsigned char *key);
+static int s_broker_decrypt_body_frames(zmsg_t *body, unsigned char *key);
 
 static worker_t *
 s_worker_require(server_t *self, zframe_t *address) {
@@ -207,8 +207,8 @@ s_service_dispatch(service_t *self) {
         zframe_t *address = zframe_dup(mdp_msg_routing_id(msg));
         mdp_msg_set_address(worker_msg, &address);
         zmsg_t *body = mdp_msg_get_body(msg);
-        s_broker_encrypt_body(body, worker->session_key_tx);
-
+        // encrypt before sending to the worker
+        s_broker_encrypt_body_frames(body, worker->session_key_tx);
         mdp_msg_set_body(worker_msg, &body);
         // zsys_debug("BROKER: Dispatching request to worker %s", worker->identity);
         mdp_msg_send(worker_msg, self->broker->router);
@@ -342,49 +342,9 @@ static void
 handle_mmi(client_t *self, const char *service_name) {
 
     char *result = zsys_sprintf("501");
-    zmsg_t *mmibody = mdp_msg_body(self->message);
+    zmsg_t *mmibody = mdp_msg_get_body(self->message);
 
     if (mmibody) {
-        zframe_t *f = zmsg_pop(mmibody);
-        if (f) {
-            if (zframe_streq(f, "BB_MDP_SECURE")) {
-
-                zframe_destroy(&f);
-                f = zmsg_pop(mmibody);
-                if (f) {
-                    // calculate keys if the ephemeral client PK changed, of keys have not been generated before
-                    /* if ((self->client_pk != NULL &&
-                         memcmp(zframe_data(f), self->client_pk, crypto_kx_PUBLICKEYBYTES) != 0) ||
-                        self->session_key_tx == NULL || self->session_key_rx == NULL) { */
-                    if (NULL == self->client_pk) {
-                        self->client_pk = (unsigned char *) zmalloc(crypto_kx_PUBLICKEYBYTES);
-                    }
-                    memcpy(self->client_pk, zframe_data(f), crypto_kx_PUBLICKEYBYTES);
-                    if (NULL == self->session_key_tx) {
-                        self->session_key_tx = (unsigned char *) zmalloc(crypto_kx_SESSIONKEYBYTES);
-                    }
-                    if (NULL == self->session_key_rx) {
-                        self->session_key_rx = (unsigned char *) zmalloc(crypto_kx_SESSIONKEYBYTES);
-                    }
-                    if (crypto_kx_server_session_keys(self->session_key_rx, self->session_key_tx, self->server->my_pk,
-                                                      self->server->my_sk, self->client_pk)) {
-                        zsys_error("Failed to generate session keys");
-                        return;
-                    }
-                    //  zsys_debug("Session keys with Client established");
-                    //}
-                    zframe_destroy(&f);
-
-                    // decrypt the body, frame by frame
-                    if (0 != s_broker_decrypt_body(mmibody, self->session_key_rx)) {
-                        zsys_error("BROKER: Decryption error");
-                        zmsg_destroy(&mmibody);
-                        return;
-                    }
-                } else return;
-            }
-            zframe_destroy(&f);
-        }
         if (strstr(service_name, "mmi.service")) {
             char *svc_lookup = zmsg_popstr(mmibody);
             if (svc_lookup) {
@@ -430,6 +390,8 @@ handle_mmi(client_t *self, const char *service_name) {
         }
     }
 
+    zmsg_destroy(&mmibody); // no longer needed
+
     // Set routing id, messageid, service, body
     mdp_msg_t *client_msg = mdp_msg_new();
     mdp_msg_set_routing_id(client_msg, mdp_msg_routing_id(self->message));
@@ -437,21 +399,33 @@ handle_mmi(client_t *self, const char *service_name) {
     mdp_msg_set_service(client_msg, service_name);
     zmsg_t *rep_body = zmsg_new();
     zmsg_pushstr(rep_body, result);
-    s_broker_encrypt_body(rep_body, self->session_key_tx);
+    zstr_free(&result);
+    s_broker_encrypt_body_frames(rep_body, self->session_key_tx);
     mdp_msg_set_body(client_msg, &rep_body);
     mdp_msg_send(client_msg, self->server->router);
     mdp_msg_destroy(&client_msg);
-    zstr_free(&result);
 }
 
-static int s_broker_encrypt_body(zmsg_t *body, unsigned char *key) {
+static worker_t *s_get_worker_by_routing_ID(zhash_t *workers, zframe_t *address) {
+    char *identity = zframe_strhex(address);
+    worker_t *worker =
+            (worker_t *) zhash_lookup(workers, identity);
+    zstr_free(&identity);
+    return worker;
+}
+
+static int s_broker_encrypt_body_frames(zmsg_t *body, unsigned char *key) {
+    int rc = -1;
     if (NULL != body) {
         if (NULL != key) {
             // encrypt the original body - frame by frame
             int num_frames = (int) zmsg_size(body);
-            // prepend identifier pubkey and first nonce
+
+            // create random nonce
             unsigned char initial_nonce[crypto_secretbox_NONCEBYTES];
             randombytes_buf(initial_nonce, crypto_secretbox_NONCEBYTES);
+
+            // store the initial nonce, as we need it when stacking the massage
             unsigned char nonce[crypto_secretbox_NONCEBYTES];
             memcpy(nonce, initial_nonce, crypto_secretbox_NONCEBYTES);
 
@@ -493,20 +467,26 @@ static int s_broker_encrypt_body(zmsg_t *body, unsigned char *key) {
 
             zmsg_pushmem(body, initial_nonce, crypto_secretbox_NONCEBYTES);
             zmsg_pushstr(body, "BB_MDP_SECURE");
-
-
+            rc = 0;
         } else {
             // prepend identifier pubkey and frames
-            zmsg_pushstr(body, "BB_MDP_PLAIN");
-            return 0;
+            rc = zmsg_pushstr(body, "BB_MDP_PLAIN");
         }
-        return 0;
-    }
-    return -1;
 
+    }
+    return rc;
 }
 
-static int s_broker_decrypt_body(zmsg_t *body, unsigned char *key) {
+static int s_broker_encrypt_client_msg(client_t *client, mdp_msg_t *msg) {
+    // get the client's key
+    char *hashkey = zframe_strhex(mdp_msg_routing_id(msg));
+    s_client_t *s_client = (s_client_t *) zhash_lookup(client->server->clients, hashkey);
+    zstr_free(&hashkey);
+
+    return (s_broker_encrypt_body_frames(mdp_msg_body(msg), s_client->client.session_key_tx));
+}
+
+static int s_broker_decrypt_body_frames(zmsg_t *body, unsigned char *key) {
     if (NULL != body && NULL != key) {
         // decrypt the body, frame by frame
         unsigned char nonce[crypto_secretbox_NONCEBYTES];
@@ -568,76 +548,113 @@ static int s_broker_decrypt_body(zmsg_t *body, unsigned char *key) {
     return -1;
 }
 
+static int s_broker_decrpt_worker_msg(client_t *self, worker_t *worker) {
+    int rc = -1;
+    zmsg_t *body = mdp_msg_body(self->message);
+    if (body) {
+        // do we need to decrypt first?
+        zframe_t *frame = zmsg_pop(body);
+        if (frame) {
+            if (zframe_streq(frame, "BB_MDP_SECURE")) {
+                rc = s_broker_decrypt_body_frames(body, worker->session_key_rx);
+            } else if (zframe_streq(frame, "BB_MDP_PLAIN")) {
+                zsys_debug("Plain worker message");
+                rc = 0;
+            } else {
+                zsys_error("Malformed reply: no encryption indicator frame");
+            }
+        } else {
+            zsys_error("Malformed reply: no body");
+        }
+    }
+    return rc;
+}
+
+static int s_broker_decrypt_client_msg(client_t *self) {
+    int rc = -1;
+    zmsg_t *body = mdp_msg_body(self->message);
+    if (body) {
+        // is it encrypted?
+        zframe_t *f = zmsg_pop(body); // get the first body frame = encryption indicator
+        if (NULL != f) {
+            if (zframe_streq(f, "BB_MDP_SECURE")) {
+                zframe_t *client_key = zmsg_pop(body); //  client pubkey frame
+                if (client_key) {
+                    if (self->client_pk)
+                        free(self->client_pk);
+
+                    if (self->session_key_tx)
+                        free(self->session_key_tx);
+
+                    if (self->session_key_rx)
+                        free(self->session_key_rx);
+
+
+                    self->client_pk = (unsigned char *) zmalloc(crypto_kx_PUBLICKEYBYTES);
+                    self->session_key_tx = (unsigned char *) zmalloc(crypto_kx_SESSIONKEYBYTES);
+                    self->session_key_rx = (unsigned char *) zmalloc(crypto_kx_SESSIONKEYBYTES);
+                    if (self->client_pk && self->session_key_tx && self->session_key_rx) {
+                        // Store the ephemeral public key TODO: Why store it?
+                        memcpy(self->client_pk, zframe_data(client_key), crypto_kx_PUBLICKEYBYTES);
+
+                        // calculate the session keys
+                        if (0 == crypto_kx_server_session_keys(self->session_key_rx, self->session_key_tx,
+                                                               self->server->my_pk,
+                                                               self->server->my_sk, self->client_pk)) {
+                            // decrypt the body frames
+                            rc = s_broker_decrypt_body_frames(body, self->session_key_rx);
+                        } else {
+                            zsys_error("Failed to generate session keys");
+                        }
+                    } else {
+                        zsys_error("Memory allocation failed for session keys");
+                    }
+
+                }
+                zframe_destroy(&client_key); // Client pubkey frame
+            } else if (zframe_streq(f, "BB_MDP_PLAIN")) {
+                //zsys_debug("Plain request");
+                rc = 0;
+            } else {
+                zsys_error("Invalid request - missing encryption indicator");
+            }
+            zframe_destroy(&f); // Encryption indicator frame
+        }
+    }
+    return rc;
+}
+
+
 //  ---------------------------------------------------------------------------
 //  handle_request
 //
 
 static void
 handle_request(client_t *self) {
-    const char *service_name = mdp_msg_service(self->message);
 
-    if (strstr(service_name, "mmi.")) {
-        handle_mmi(self, service_name);
-        return;
-    }
+    if (0 == s_broker_decrypt_client_msg(self)) {
+        const char *service_name = mdp_msg_service(self->message);
 
-    // Create a fresh instance of mdp_msg_t to append to the list of requests.
-    mdp_msg_t *msg = mdp_msg_new();
-
-    // routing id, messageid, service, body
-    mdp_msg_set_routing_id(msg, mdp_msg_routing_id(self->message));
-    mdp_msg_set_id(msg, mdp_msg_id(self->message));
-    mdp_msg_set_service(msg, service_name);
-    zmsg_t *body = mdp_msg_get_body(self->message);
-
-    // is it encrypted?
-    zframe_t *f = zmsg_pop(body);
-    if (NULL != f) {
-        if (zframe_streq(f, "BB_MDP_SECURE")) {
-            //  zsys_debug("Encrypted message");
-            // get the client pubkey frame
-            zframe_destroy(&f);
-            f = zmsg_pop(body);
-            if (f) {
-                // calculate keys if the ephemeral client PK changed, of keys have not been generated before
-                /* if ((self->client_pk != NULL &&
-                     memcmp(zframe_data(f), self->client_pk, crypto_kx_PUBLICKEYBYTES) != 0) ||
-                    self->session_key_tx == NULL || self->session_key_rx == NULL) { */
-                if (NULL == self->client_pk) {
-                    self->client_pk = (unsigned char *) zmalloc(crypto_kx_PUBLICKEYBYTES);
-                }
-                memcpy(self->client_pk, zframe_data(f), crypto_kx_PUBLICKEYBYTES);
-                if (NULL == self->session_key_tx) {
-                    self->session_key_tx = (unsigned char *) zmalloc(crypto_kx_SESSIONKEYBYTES);
-                }
-                if (NULL == self->session_key_rx) {
-                    self->session_key_rx = (unsigned char *) zmalloc(crypto_kx_SESSIONKEYBYTES);
-                }
-                if (crypto_kx_server_session_keys(self->session_key_rx, self->session_key_tx, self->server->my_pk,
-                                                  self->server->my_sk, self->client_pk)) {
-                    zsys_error("Failed to generate session keys");
-                    return;
-                }
-                //  zsys_debug("Session keys with Client established");
-                //}
-                zframe_destroy(&f);
-
-                // decrypt the body, frame by frame
-                if (0 != s_broker_decrypt_body(body, self->session_key_rx)) {
-                    zsys_error("BROKER: Decryption error");
-                    zmsg_destroy(&body);
-                    return;
-                }
-            } else return;
+        if (strstr(service_name, "mmi.")) {
+            handle_mmi(self, service_name);
+            return;
         }
-        zframe_destroy(&f);
+
+        // Create a fresh instance of mdp_msg_t to append to the list of requests.
+        mdp_msg_t *msg = mdp_msg_new();
+
+        // routing id, messageid, service, body
+        mdp_msg_set_routing_id(msg, mdp_msg_routing_id(self->message));
+        mdp_msg_set_id(msg, mdp_msg_id(self->message));
+        mdp_msg_set_service(msg, service_name);
+        zmsg_t *body = mdp_msg_get_body(self->message);
+        mdp_msg_set_body(msg, &body);
+        service_t *service = s_service_require(self->server, service_name);
+        zlist_append(service->requests, msg);
+        s_service_dispatch(service);
+    } else {
+        zsys_error("Malformed request");
     }
-
-    mdp_msg_set_body(msg, &body);
-    service_t *service = s_service_require(self->server, service_name);
-    zlist_append(service->requests, msg);
-    s_service_dispatch(service);
-
 }
 
 
@@ -647,45 +664,27 @@ handle_request(client_t *self) {
 
 static void
 handle_worker_partial(client_t *self) {
-    mdp_msg_t *msg = self->message;
-    mdp_msg_t *client_msg = mdp_msg_new();
-    // Set routing id, messageid, service, body
-    zframe_t *address = mdp_msg_address(msg);
+    //identify the worker -> needed for decryption
+    worker_t *worker = s_get_worker_by_routing_ID(self->server->workers, mdp_msg_routing_id(self->message));
+    if (worker) {
+        if (0 == s_broker_decrpt_worker_msg(self, worker)) {
+            mdp_msg_t *worker_msg = self->message;
+            mdp_msg_t *client_msg = mdp_msg_new();
+            // Set routing id, messageid, service, body
+            zframe_t *address = mdp_msg_address(worker_msg);
 
-    mdp_msg_set_routing_id(client_msg, address);
-    mdp_msg_set_id(client_msg, MDP_MSG_CLIENT_PARTIAL);
-    mdp_msg_set_service(client_msg, mdp_msg_service(msg));
-    zmsg_t *body = mdp_msg_get_body(msg);
+            mdp_msg_set_routing_id(client_msg, address);
+            mdp_msg_set_id(client_msg, MDP_MSG_CLIENT_PARTIAL);
+            mdp_msg_set_service(client_msg, mdp_msg_service(worker_msg));
 
-    if (body) {
-        // do we need to decrypt first?
-        zframe_t *frame = zmsg_pop(body);
-        if (frame) {
-            if (zframe_streq(frame, "BB_MDP_SECURE")) {
-                // Get the worker's keys
-                char *identity = zframe_strhex(mdp_msg_routing_id(msg));
-                worker_t *worker =
-                        (worker_t *) zhash_lookup(self->server->workers, identity);
-                free(identity);
-                if (worker) {
-                    if (0 != s_broker_decrypt_body(body, worker->session_key_rx)) {
-                        zsys_error("BROKER: Decryption Error");
-                        zmsg_destroy(&body);
-                        return;
-                    }
-                }
-            }
-            // get the client's key
-            char *hashkey = zframe_strhex(address);
-            s_client_t *client = (s_client_t *) zhash_lookup(self->server->clients, hashkey);
-            free(hashkey);
-            s_broker_encrypt_body(body, client->client.session_key_tx);
+            // encrypt the body with client keys before sending
+            s_broker_encrypt_client_msg(self, worker_msg);
+            zmsg_t *body = mdp_msg_get_body(worker_msg);
+            mdp_msg_set_body(client_msg, &body);
 
-            zframe_destroy(&frame);
+            mdp_msg_send(client_msg, self->server->router);
+            mdp_msg_destroy(&client_msg);
         }
-        mdp_msg_set_body(client_msg, &body);
-        mdp_msg_send(client_msg, self->server->router);
-        mdp_msg_destroy(&client_msg);
     } else {
         zsys_error("Could not identify sending worker - decryption failed");
     }
@@ -698,56 +697,37 @@ handle_worker_partial(client_t *self) {
 
 static void
 handle_worker_final(client_t *self) {
-    mdp_msg_t *msg = self->message;
-    mdp_msg_t *client_msg = mdp_msg_new();
-    // Set routing id, messageid, service, body
-    zframe_t *address = mdp_msg_address(msg);
-
-    mdp_msg_set_routing_id(client_msg, address);
-    char *identity = zframe_strhex(mdp_msg_routing_id(msg));
-    worker_t *worker =
-            (worker_t *) zhash_lookup(self->server->workers, identity);
+    //identify the worker -> needed for decryption
+    worker_t *worker = s_get_worker_by_routing_ID(self->server->workers, mdp_msg_routing_id(self->message));
     if (worker) {
-        mdp_msg_set_id(client_msg, MDP_MSG_CLIENT_FINAL);
-        const char *service_name = self->service_name;
-        mdp_msg_set_service(client_msg, service_name);
-        zmsg_t *body = mdp_msg_get_body(msg);
+        if (0 == s_broker_decrpt_worker_msg(self, worker)) {
+            mdp_msg_t *worker_msg = self->message;
+            mdp_msg_t *client_msg = mdp_msg_new();
+            // Set routing id, messageid, service, body
+            zframe_t *address = mdp_msg_address(worker_msg);
 
-        if (body) {
-            // do we need to decrypt first?
-            zframe_t *frame = zmsg_pop(body);
-            if (frame) {
-                if (zframe_streq(frame, "BB_MDP_SECURE")) {
-                    // Get the worker's keys
-                    if (0 != s_broker_decrypt_body(body, worker->session_key_rx)) {
-                        zsys_error("BROKER: Decryption error");
-                        zmsg_destroy(&body);
-                        return;
-                    }
-                }
+            mdp_msg_set_routing_id(client_msg, address);
+            mdp_msg_set_id(client_msg, MDP_MSG_CLIENT_FINAL);
+            mdp_msg_set_service(client_msg, mdp_msg_service(worker_msg));
+            // encrypt the body with client keys before sending
+            s_broker_encrypt_client_msg(self, worker_msg);
+            zmsg_t *body = mdp_msg_get_body(worker_msg);
+            mdp_msg_set_body(client_msg, &body);
 
-                // get the client's key
-                char *hashkey = zframe_strhex(address);
-                s_client_t *client = (s_client_t *) zhash_lookup(self->server->clients, hashkey);
-                free(hashkey);
-                s_broker_encrypt_body(body, client->client.session_key_tx);
-            }
-            zframe_destroy(&frame);
+            mdp_msg_send(client_msg, self->server->router);
+            mdp_msg_destroy(&client_msg);
+
+
+            // Add the worker back to the list of waiting workers.
+            zlist_append(self->server->waiting, worker);
+            service_t *service = (service_t *) zhash_lookup(self->server->services,
+                                                            worker->service->name);
+            assert(service);
+            zlist_append(service->waiting, worker);
 
         }
-
-        mdp_msg_set_body(client_msg, &body);
-        mdp_msg_send(client_msg, self->server->router);
-
-        // Add the worker back to the list of waiting workers.
-        zlist_append(self->server->waiting, worker);
-        service_t *service = (service_t *) zhash_lookup(self->server->services,
-                                                        worker->service->name);
-        assert(service);
-        zlist_append(service->waiting, worker);
-
-        zstr_free(&identity);
-        mdp_msg_destroy(&client_msg);
+    } else {
+        zsys_error("Could not identify sending worker - decryption failed");
     }
 }
 
