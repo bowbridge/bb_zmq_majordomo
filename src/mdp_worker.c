@@ -54,10 +54,10 @@ typedef struct {
 
 // Maximum number of timeouts; If this number is reached, we stop sending
 // heartbeats and terminate connection.
-#define MAX_TIMEOUTS 7
+#define MAX_TIMEOUTS 3
 
 // Interval for sending heartbeat [ms]
-#define HEARTBEAT_DELAY 1500
+#define HEARTBEAT_DELAY 2500
 
 static int s_worker_encrypt_body_frames(zmsg_t *body, unsigned char *key) {
     if (NULL != body && NULL != key) {
@@ -73,7 +73,7 @@ static int s_worker_encrypt_body_frames(zmsg_t *body, unsigned char *key) {
         memcpy(nonce, initial_nonce, crypto_secretbox_NONCEBYTES);
 
         int i = 0;
-        //zsys_debug("WORKER: Encrypting with key %2x %2x ... %2x %2x ", key[0], key[1],key[crypto_kx_SESSIONKEYBYTES - 2], key[crypto_kx_SESSIONKEYBYTES - 1]);
+        // zsys_debug("WORKER: Encrypting with key %2x %2x ... %2x %2x ", key[0], key[1],key[crypto_kx_SESSIONKEYBYTES - 2],key[crypto_kx_SESSIONKEYBYTES - 1]);
         for (i = 0; i < num_frames; i++) {
             zframe_t *frame = zmsg_pop(body);
             if (NULL != frame) {
@@ -125,22 +125,22 @@ static int s_worker_decrypt_body_frames(zmsg_t *body, unsigned char *key) {
     if (NULL != body && NULL != key) {
         // decrypt the body, frame by frame
         unsigned char nonce[crypto_secretbox_NONCEBYTES];
-        zframe_t *nonce_frame = zmsg_pop(body);
-        if (nonce_frame) {
+        zframe_t *frame = zmsg_pop(body);
+        if (frame) {
             // nonce frame
-            memcpy(nonce, zframe_data(nonce_frame), crypto_secretbox_NONCEBYTES);
-            zframe_destroy(&nonce_frame);
+            memcpy(nonce, zframe_data(frame), crypto_secretbox_NONCEBYTES);
+            zframe_destroy(&frame);
             int num_frames = (int) zmsg_size(body) - 1;
             int i = 0;
-            //zsys_debug("WORKER: Decrypting with key %2x %2x ... %2x %2x ", key[0], key[1],key[crypto_kx_SESSIONKEYBYTES - 2], key[crypto_kx_SESSIONKEYBYTES - 1]);
+            // zsys_debug("WORKER: Decrypting with key %2x %2x ... %2x %2x ", key[0], key[1],key[crypto_kx_SESSIONKEYBYTES - 2],key[crypto_kx_SESSIONKEYBYTES - 1]);
             int errror_count = 0;
-            zframe_t *data_frame;
             for (i = 0; i < num_frames; i++) {
-                data_frame = zmsg_pop(body);
-                if (data_frame) {
-                    unsigned char *ciphertext = zframe_data(data_frame);
+
+                frame = zmsg_pop(body);
+                if (frame) {
+                    unsigned char *ciphertext = zframe_data(frame);
                     if (ciphertext) {
-                        size_t ciphertextlen = zframe_size(data_frame);
+                        size_t ciphertextlen = zframe_size(frame);
                         size_t plaintextlen = ciphertextlen - crypto_secretbox_MACBYTES;
                         unsigned char *plaintext = (unsigned char *) zmalloc(plaintextlen);
                         if (plaintext) {
@@ -158,26 +158,24 @@ static int s_worker_decrypt_body_frames(zmsg_t *body, unsigned char *key) {
                             }
                         }
                     }
-                    zframe_destroy(&data_frame);
+                    zframe_destroy(&frame);
                 }
             }
             if (0 == errror_count) {
                 // get/decrypt "Canary" frame
-                data_frame = zmsg_pop(body);
-                size_t ciphertextlen = zframe_size(data_frame);
+                frame = zmsg_pop(body);
+                size_t ciphertextlen = zframe_size(frame);
                 size_t plaintextlen = ciphertextlen - crypto_secretbox_MACBYTES;
                 unsigned char *plaintext = (unsigned char *) zmalloc(plaintextlen);
-                int res = crypto_secretbox_open_easy(plaintext, zframe_data(data_frame),
+                int res = crypto_secretbox_open_easy(plaintext, zframe_data(frame),
                                                      (unsigned long long int) ciphertextlen, nonce,
                                                      key);
-                zframe_destroy(&data_frame);
                 if (0 == res &&
                     0 == memcmp(plaintext, "BB_MDP_SECURE", strlen("BB_MDP_SECURE"))) {
-                    rc = 0;
-                } else {
                     zsys_error("WORKER: Decryption error - Check failed");
                     zmsg_destroy(&body);
-
+                    zframe_destroy(&frame);
+                    rc = 0;
                 }
                 free(plaintext);
             } else {
@@ -205,6 +203,7 @@ static int s_worker_decrypt_request_body(client_t *self, mdp_worker_msg_t *worke
             }
             zframe_destroy(&enc_if);
         }
+
     }
     return rc;
 }
