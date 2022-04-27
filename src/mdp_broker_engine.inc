@@ -146,6 +146,9 @@ handle_worker_partial(client_t *self);
 static void
 handle_worker_final(client_t *self);
 
+static void
+handle_worker_disconnect(client_t *self);
+
 static int
 check_timeouts(client_t *self);
 
@@ -518,8 +521,8 @@ s_client_execute(s_client_t *self, event_t event) {
                     if (!self->exception) {
                         //  delete worker
                         if (self->server->verbose)
-                            zsys_debug("%s:         $ delete worker", self->log_prefix);
-                        delete_worker(&self->client);
+                            zsys_debug("%s:         $ disconnect and delete worker", self->log_prefix);
+                        handle_worker_disconnect(&self->client);
                     }
                 } else if (self->event == destructor_event) {
                     if (!self->exception) {

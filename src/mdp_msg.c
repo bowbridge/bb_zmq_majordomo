@@ -292,9 +292,9 @@ mdp_msg_recv(mdp_msg_t *self, zsock_t *input) {
             if (self->body) {
                 zmsg_destroy(&self->body);
             }
-            if (zsock_rcvmore(input))
+            if (zsock_rcvmore(input)) {
                 self->body = zmsg_recv(input);
-            else
+            } else
                 self->body = zmsg_new();
             break;
 
@@ -319,9 +319,9 @@ mdp_msg_recv(mdp_msg_t *self, zsock_t *input) {
             if (self->body) {
                 zmsg_destroy(&self->body);
             }
-            if (zsock_rcvmore(input))
+            if (zsock_rcvmore(input)) {
                 self->body = zmsg_recv(input);
-            else
+            } else
                 self->body = zmsg_new();
             break;
 
@@ -346,9 +346,9 @@ mdp_msg_recv(mdp_msg_t *self, zsock_t *input) {
             if (self->body) {
                 zmsg_destroy(&self->body);
             }
-            if (zsock_rcvmore(input))
+            if (zsock_rcvmore(input)) {
                 self->body = zmsg_recv(input);
-            else
+            } else
                 self->body = zmsg_new();
             break;
 
@@ -373,8 +373,9 @@ mdp_msg_recv(mdp_msg_t *self, zsock_t *input) {
             if (self->body) {
                 zmsg_destroy(&self->body);
             }
-            if (zsock_rcvmore(input))
+            if (zsock_rcvmore(input)) {
                 self->body = zmsg_recv(input);
+            }
             break;
 
         case MDP_MSG_WORKER_REQUEST: {
@@ -408,13 +409,11 @@ mdp_msg_recv(mdp_msg_t *self, zsock_t *input) {
             zframe_destroy(&self->empty);
             self->empty = zframe_recv(input);
             //  Get zero or more remaining frames
-            if (self->body) {
-
+            if (self->body)
                 zmsg_destroy(&self->body);
-            }
-            if (zsock_rcvmore(input))
+            if (zsock_rcvmore(input)) {
                 self->body = zmsg_recv(input);
-            else
+            } else
                 self->body = zmsg_new();
             break;
 
@@ -452,9 +451,9 @@ mdp_msg_recv(mdp_msg_t *self, zsock_t *input) {
             if (self->body) {
                 zmsg_destroy(&self->body);
             }
-            if (zsock_rcvmore(input))
+            if (zsock_rcvmore(input)) {
                 self->body = zmsg_recv(input);
-            else
+            } else
                 self->body = zmsg_new();
             break;
 
@@ -492,9 +491,9 @@ mdp_msg_recv(mdp_msg_t *self, zsock_t *input) {
             if (self->body) {
                 zmsg_destroy(&self->body);
             }
-            if (zsock_rcvmore(input))
+            if (zsock_rcvmore(input)) {
                 self->body = zmsg_recv(input);
-            else
+            } else
                 self->body = zmsg_new();
             break;
 

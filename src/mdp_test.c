@@ -23,8 +23,8 @@ main() {
 
     char *endpoint_bind = endpoint;
     //mdp_client_t *client = mdp_client_new(endpoint);
-    //mdp_client_t *client = mdp_client_new(endpoint, (unsigned char *) BROKER_PK);
-    mdp_client_t *client = mdp_client_new(endpoint, NULL);
+    mdp_client_t *client = mdp_client_new(endpoint, (unsigned char *) BROKER_PK);
+    //mdp_client_t *client = mdp_client_new(endpoint, NULL);
     //mdp_client_set_verbose(client);
 
     zactor_t *broker = zactor_new(mdp_broker, "server");
@@ -40,8 +40,8 @@ main() {
     int i = 0;
     for (i = 0; i < NUM_WORKERS; i++) {
         //workers[i] = mdp_worker_new(endpoint, service);
-        workers[i] = mdp_worker_new(endpoint, service, NULL, NULL);
-        //workers[i] = mdp_worker_new(endpoint, service, (unsigned char *) WORKER_PK, (unsigned char *) BROKER_PK);
+        //workers[i] = mdp_worker_new(endpoint, service, NULL, NULL);
+        workers[i] = mdp_worker_new(endpoint, service, (unsigned char *) WORKER_PK, (unsigned char *) BROKER_PK);
         //mdp_worker_set_verbose(workers[i]);
     }
     //  mdp_worker_t *worker2 = mdp_worker_new(endpoint, service, (unsigned char *) WORKER_PK, (unsigned char *) BROKER_PK);
@@ -77,7 +77,7 @@ main() {
 //    zmsg_destroy(&_message);
 
     i = 0;
-    for (i = 0; i < 5; i++) {
+    for (i = 0; i < 2; i++) {
 
         zmsg_t *client_request = zmsg_new();
         assert(client_request);
@@ -107,23 +107,23 @@ main() {
 
         char response[64];
 
-        /*      sprintf(response, "Partial response to %s", first_str);
-              zmsg_t *worker_response = zmsg_new();
-              zmsg_addstr(worker_response, response);
-              zframe_t *address_partial_reply = zframe_dup(address); // duplicate
-              mdp_worker_send_partial(workers[i], &address_partial_reply, &worker_response);
+        sprintf(response, "Partial response to %s", first_str);
+        zmsg_t *worker_response = zmsg_new();
+        zmsg_addstr(worker_response, response);
+        zframe_t *address_partial_reply = zframe_dup(address); // duplicate
+        mdp_worker_send_partial(workers[0], &address_partial_reply, &worker_response);
 
 
-              // Wait for partial reponse.
-              zmsg_t *client_partial_reply = NULL;
+        // Wait for partial reponse.
+        zmsg_t *client_partial_reply = NULL;
 
-              res = zsock_recv(client_sock, "sm", &cmd, &client_partial_reply);
-              printf("Client (2): got command %s\n", cmd);
-              free(cmd);
-              printf(" Response body:\n");
-              zmsg_print(client_partial_reply);
-              zmsg_destroy(&client_partial_reply);
-      */
+        res = zsock_recv(client_sock, "sm", &cmd, &client_partial_reply);
+        printf("Client (2): got command %s\n", cmd);
+        free(cmd);
+        printf(" Response body:\n");
+        zmsg_print(client_partial_reply);
+        zmsg_destroy(&client_partial_reply);
+
 
         sprintf(response, "Final response to %s", first_str);
         free(first_str);
@@ -143,28 +143,27 @@ main() {
     }
 
 
-    for (i = 0; i < 1; i++) {
+    for (i = 0; i < 5; i++) {
 
         char *result = NULL;
-        /*        char *_cmd = NULL;
-zsock_t *client_sock = mdp_client_msgpipe(client);
-          zmsg_t *mmi_msg = NULL;
-          mmi_msg = zmsg_new();
-          zmsg_addstr(mmi_msg, service);
-          mdp_client_request(client, "mmi.workers", &mmi_msg);
-          zsock_recv(client_sock, "sm", &_cmd, &mmi_msg);
-          free(_cmd);
-          zmsg_destroy(&mmi_msg);
-          */
-        /*      char *waiting = NULL;
-              mmi_msg = zmsg_new();
-              zmsg_addstr(mmi_msg, service);
-              mdp_client_request(client, "mmi.waiting", &mmi_msg);
-              zsock_recv(client_sock, "ss", &_cmd, &waiting);
-              zsys_debug("*************************************  Workers: %s, Waiting: %s", result, waiting);
-              free(_cmd);
-              free(waiting);
-              */
+        char *_cmd = NULL;
+        zsock_t *client_sock = mdp_client_msgpipe(client);
+        zmsg_t *mmi_msg = NULL;
+        mmi_msg = zmsg_new();
+        zmsg_addstr(mmi_msg, service);
+        mdp_client_request(client, "mmi.workers", &mmi_msg);
+        zsock_recv(client_sock, "ss", &_cmd, &result);
+        free(_cmd);
+        zmsg_destroy(&mmi_msg);
+        char *waiting = NULL;
+        mmi_msg = zmsg_new();
+        zmsg_addstr(mmi_msg, service);
+        mdp_client_request(client, "mmi.waiting", &mmi_msg);
+        zsock_recv(client_sock, "ss", &_cmd, &waiting);
+        zsys_debug("*************************************  Workers: %s, Waiting: %s", result, waiting);
+        free(_cmd);
+        free(waiting);
+
         if (result)
             free(result);
 
@@ -205,6 +204,7 @@ zsock_t *client_sock = mdp_client_msgpipe(client);
        workers[3] = mdp_worker_new(endpoint, service, (unsigned char *) WORKER_PK,
                                    (unsigned char *) BROKER_PK);
                                          */
+    /*
     zmsg_t *mmi_msg;
     for (i = 0; i < 5; i++) {
         zsock_t *client_sock = mdp_client_msgpipe(client);
@@ -230,7 +230,7 @@ zsock_t *client_sock = mdp_client_msgpipe(client);
         zmsg_destroy(&mmi_msg);
         sleep(1);
     }
-    /*
+
 
     printf("************************ Destroying broker\r\n");
     zactor_destroy(&broker);
