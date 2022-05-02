@@ -11,7 +11,7 @@
 #define BROKER_PK "ZT77-JRva8XUh5-1po6iCTyNeNNFkJXJhCz6ztIirUw"
 #define BROKER_SK "to2PhEjc4_Os3BaW6sspMm2Wcz2z7qQJ84seDPxi4J4"
 char *endpoint = "ipc:///tmp/mdp.ipc";
-#define NUM_WORKERS 1
+#define NUM_WORKERS 100
 
 int
 main() {
@@ -265,6 +265,8 @@ main() {
         sleep(1);
     }
     */
+
+    getchar();
 
     for (i = 0; i < NUM_WORKERS; i++) {
         mdp_worker_destroy(&workers[i]);
