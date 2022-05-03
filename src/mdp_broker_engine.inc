@@ -375,7 +375,6 @@ s_client_new(s_server_t *server, zframe_t *routing_id) {
 static void
 s_client_destroy(s_client_t **self_p) {
     assert (self_p);
-
     if (*self_p) {
         s_client_t *self = *self_p;
         if (self->wakeup)
@@ -486,7 +485,7 @@ s_client_execute(s_client_t *self, event_t event) {
                             zsys_debug("%s:         $ check timeouts", self->log_prefix);
                         if (-1 == check_timeouts(&self->client)) {
                             zsys_warning("Heartbeats timed out for worker %s", zframe_strhex(self->routing_id));
-                            delete_worker((client_t *) self);
+                            handle_worker_disconnect(&self->client);
                         }
                     }
                     if (!self->exception) {
