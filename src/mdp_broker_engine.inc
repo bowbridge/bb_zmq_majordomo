@@ -147,13 +147,13 @@ static void
 handle_worker_final(client_t *self);
 
 static void
-handle_worker_disconnect(client_t *self);
+handle_worker_disconnect(worker_t *self);
 
 static int
 check_timeouts(client_t *self);
 
 static void
-delete_worker(client_t *self);
+delete_worker(worker_t *self);
 
 static void
 destroy_broker(client_t *self);
@@ -377,6 +377,7 @@ s_client_destroy(s_client_t **self_p) {
     assert (self_p);
     if (*self_p) {
         s_client_t *self = *self_p;
+        delete_worker(self->client.worker);
         if (self->wakeup)
             zloop_timer_end(self->server->loop, self->wakeup);
         if (self->ticket)
@@ -433,7 +434,6 @@ s_client_execute(s_client_t *self, event_t event) {
                         if (self->server->verbose)
                             zsys_debug("%s:         $ handle ready", self->log_prefix);
                         handle_ready(&self->client);
-                        zsys_debug("Worker %s READY", zframe_strhex(self->routing_id));
                     }
                     if (!self->exception) {
                         //  handle set wakeup
@@ -484,8 +484,8 @@ s_client_execute(s_client_t *self, event_t event) {
                         if (self->server->verbose)
                             zsys_debug("%s:         $ check timeouts", self->log_prefix);
                         if (-1 == check_timeouts(&self->client)) {
-                            zsys_warning("Heartbeats timed out for worker %s", zframe_strhex(self->routing_id));
-                            handle_worker_disconnect(&self->client);
+                            zsys_warning("Heartbeats timed out for worker %s for service %s",
+                                         zframe_strhex(self->routing_id), self->client.service_name);
                         }
                     }
                     if (!self->exception) {
@@ -519,7 +519,7 @@ s_client_execute(s_client_t *self, event_t event) {
                         //  delete worker
                         if (self->server->verbose)
                             zsys_debug("%s:         $ disconnect and delete worker", self->log_prefix);
-                        handle_worker_disconnect(&self->client);
+                        handle_worker_disconnect(self->client.worker);
                     }
                 } else if (self->event == destructor_event) {
                     if (!self->exception) {

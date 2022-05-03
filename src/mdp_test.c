@@ -218,7 +218,7 @@ main() {
     zstr_sendx(broker, "KEYS", BROKER_PK, BROKER_SK, "/home/joerg/authkeys.txt", NULL);
     zstr_sendx(broker, "BIND", endpoint_bind, NULL);
 */
-    for (i = 0; i < 5; i++) {
+    for (i = 0; i < 50; i++) {
         mmi_msg = zmsg_new();
         zsock_t *client_sock = mdp_client_msgpipe(client);
         char *_cmd = NULL;
@@ -240,17 +240,16 @@ main() {
         zmsg_destroy(&mmi_msg);
         free(result);
         free(waiting);
-        sleep(1);
+
     }
 
 
-    sleep(15);
     for (i = 0; i < NUM_WORKERS; i++) {
         zsys_debug("Destroying worker %p", workers[i]);
         mdp_worker_destroy(&workers[i]);
     }
 
-    for (i = 0; i < 20; i++) {
+    for (i = 0; i < 40; i++) {
         mmi_msg = zmsg_new();
         zsock_t *client_sock = mdp_client_msgpipe(client);
         char *_cmd = NULL;

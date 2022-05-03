@@ -50,10 +50,32 @@ struct _server_t {
     unsigned char *my_sk;
 };
 
+
+// The service class defines a single service instance.
+typedef struct {
+    server_t *broker;       // Broker instance
+    char *name;             // Service name
+    zlist_t *requests;      // List of client requests
+    zlist_t *waiting;       // List of waiting workers
+    size_t workers;         // How many workers we have
+} service_t;
+
+
+// The worker class defines a single worker, idle or active
+typedef struct {
+    server_t *broker;      // Broker instance
+    char *identity;         // Identity of worker
+    zframe_t *address;      // Address frame to route to
+    service_t *service;     // Owning service, if known
+    int64_t expiry;         // Expires at unless heartbeat
+    unsigned char *session_key_tx;
+    unsigned char *session_key_rx;
+} worker_t;
+
+
 //  ---------------------------------------------------------------------------
 //  This structure defines the state for each client connection. It will
 //  be passed to each action in the 'self' argument.
-
 struct _client_t {
     //  These properties must always be present in the client_t
     //  and are set by the generated engine; do not modify them!
@@ -66,29 +88,11 @@ struct _client_t {
     unsigned char *client_pk;
     unsigned char *session_key_rx;
     unsigned char *session_key_tx;
+    worker_t *worker; // worker using this client connection
 };
 
-// The service class defines a single service instance.
 
-typedef struct {
-    server_t *broker;       // Broker instance
-    char *name;             // Service name
-    zlist_t *requests;      // List of client requests
-    zlist_t *waiting;       // List of waiting workers
-    size_t workers;         // How many workers we have
-} service_t;
 
-// The worker class defines a single worker, idle or active
-
-typedef struct {
-    server_t *broker;      // Broker instance
-    char *identity;         // Identity of worker
-    zframe_t *address;      // Address frame to route to
-    service_t *service;     // Owning service, if known
-    int64_t expiry;         // Expires at unless heartbeat
-    unsigned char *session_key_tx;
-    unsigned char *session_key_rx;
-} worker_t;
 
 //  Include the generated server engine
 #include "mdp_broker_engine.inc"
@@ -747,9 +751,7 @@ handle_worker_final(client_t *self) {
 //
 
 static void
-handle_worker_disconnect(client_t *self) {
-    mdp_msg_t *worker_msg = self->message;
-    if (worker_msg) { ; }
+handle_worker_disconnect(worker_t *self) {
     delete_worker(self);
 }
 
@@ -784,7 +786,11 @@ handle_ready(client_t *self) {
     if (worker_ready) // Not first command in session.
     {
         s_worker_delete(worker, 1);
-    } else { // Check if we need to perform the key exchange
+    } else {
+        // store reference to the worker in the client struct
+        self->worker = worker;
+
+        // Check if we need to perform the key exchange
         zmsg_t *ready_body = mdp_msg_get_body(msg);
         if (ready_body) {
             zframe_t *f = zmsg_pop(ready_body); // empty frame
@@ -872,15 +878,9 @@ handle_set_wakeup(client_t *self) {
 //
 
 static void
-delete_worker(client_t *self) {
-    mdp_msg_t *msg = self->message;
-    zframe_t *routing_id = mdp_msg_routing_id(msg);
-    assert(routing_id);
-    char *identity = zframe_strhex(routing_id);
-    worker_t *worker = (worker_t *) zhash_lookup(self->server->workers, identity);
-    free(identity);
-    if (worker != NULL)
-        s_worker_delete(worker, 0);
+delete_worker(worker_t *self) {
+    if (self != NULL)
+        s_worker_delete(self, 0);
 }
 
 
