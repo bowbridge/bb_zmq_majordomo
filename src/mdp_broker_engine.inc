@@ -430,8 +430,7 @@ s_client_execute(s_client_t *self, event_t event) {
                         if (self->server->verbose)
                             zsys_debug("%s:         $ reset timeouts", self->log_prefix);
                         reset_timeouts(&self->client);
-                    }
-                    if (!self->exception) {
+
                         //  handle ready
                         if (self->server->verbose)
                             zsys_debug("%s:         $ handle ready", self->log_prefix);
@@ -456,8 +455,7 @@ s_client_execute(s_client_t *self, event_t event) {
                         if (self->server->verbose)
                             zsys_debug("%s:         $ reset timeouts", self->log_prefix);
                         reset_timeouts(&self->client);
-                    }
-                    if (!self->exception) {
+
                         //  handle worker partial
                         if (self->server->verbose)
                             zsys_debug("%s:         $ handle worker partial", self->log_prefix);
@@ -469,8 +467,7 @@ s_client_execute(s_client_t *self, event_t event) {
                         if (self->server->verbose)
                             zsys_debug("%s:         $ reset timeouts", self->log_prefix);
                         reset_timeouts(&self->client);
-                    }
-                    if (!self->exception) {
+
                         //  handle worker final
                         if (self->server->verbose)
                             zsys_debug("%s:         $ handle worker final", self->log_prefix);
@@ -510,8 +507,7 @@ s_client_execute(s_client_t *self, event_t event) {
                         if (self->server->verbose)
                             zsys_debug("%s:         $ reset timeouts", self->log_prefix);
                         reset_timeouts(&self->client);
-                    }
-                    if (!self->exception) {
+
                         //  handle set wakeup
                         if (self->server->verbose)
                             zsys_debug("%s:         $ handle set wakeup", self->log_prefix);

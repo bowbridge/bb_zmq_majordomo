@@ -457,6 +457,20 @@ s_client_execute(s_client_t *self, event_t event) {
                         self->state = wait_for_response_state;
                 } else if (self->event == send_heartbeat_event) {
                     if (!self->exception) {
+                        //  send HEARTBEAT
+                        if (mdp_worker_verbose) {
+                            zsys_debug("mdp_worker:            $ send HEARTBEAT");
+                        }
+                        mdp_worker_msg_set_id(self->message, MDP_WORKER_MSG_HEARTBEAT);
+                        mdp_worker_msg_send(self->message, self->dealer);
+
+                        //  handle set wakeup
+                        if (mdp_worker_verbose) {
+                            zsys_debug("mdp_worker:            $ handle set wakeup");
+                        }
+                        handle_set_wakeup(&self->client);
+                    }
+                    if (!self->exception) {
                         //  check timeouts
                         if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ check timeouts for %p", self);
@@ -467,21 +481,7 @@ s_client_execute(s_client_t *self, event_t event) {
                             self->state = start_state;
                         }
                     }
-                    if (!self->exception) {
-                        //  send HEARTBEAT
-                        if (mdp_worker_verbose) {
-                            zsys_debug("mdp_worker:            $ send HEARTBEAT");
-                        }
-                        mdp_worker_msg_set_id(self->message, MDP_WORKER_MSG_HEARTBEAT);
-                        mdp_worker_msg_send(self->message, self->dealer);
-                    }
-                    if (!self->exception) {
-                        //  handle set wakeup
-                        if (mdp_worker_verbose) {
-                            zsys_debug("mdp_worker:            $ handle set wakeup");
-                        }
-                        handle_set_wakeup(&self->client);
-                    }
+
                 } else if (self->event == heartbeat_event) {
                     if (!self->exception) {
                         //  reset timeouts
@@ -489,8 +489,7 @@ s_client_execute(s_client_t *self, event_t event) {
                             zsys_debug("mdp_worker:            $ reset timeouts");
                         }
                         reset_timeouts(&self->client);
-                    }
-                    if (!self->exception) {
+
                         //  handle set wakeup
                         if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ handle set wakeup");
