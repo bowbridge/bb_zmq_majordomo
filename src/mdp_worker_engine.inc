@@ -451,7 +451,6 @@ s_client_execute(s_client_t *self, event_t event) {
                         if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ signal request");
                         }
-                        reset_timeouts(&self->client);
                         signal_request(&self->client);
                     }
                     if (!self->exception)
@@ -478,8 +477,7 @@ s_client_execute(s_client_t *self, event_t event) {
                         }
                         if (check_timeouts(&self->client)) {
                             zsys_debug("Broker heartbeats expired for worker %p", self);
-                            zsock_disconnect(self->dealer, "%s", self->args.endpoint);
-                            reset_timeouts(&self->client);
+                            self->client.timeouts = 0;
                             self->state = start_state;
                         }
                     }
