@@ -378,6 +378,7 @@ s_client_destroy(s_client_t **self_p) {
 
     if (*self_p) {
         s_client_t *self = *self_p;
+        delete_worker((client_t *) self);
         if (self->wakeup)
             zloop_timer_end(self->server->loop, self->wakeup);
         if (self->ticket)
@@ -429,12 +430,12 @@ s_client_execute(s_client_t *self, event_t event) {
                         //  reset timeouts
                         if (self->server->verbose)
                             zsys_debug("%s:         $ reset timeouts", self->log_prefix);
-                        reset_timeouts(&self->client);
 
                         //  handle ready
                         if (self->server->verbose)
                             zsys_debug("%s:         $ handle ready", self->log_prefix);
                         handle_ready(&self->client);
+                        zsys_debug("Worker %s READY", zframe_strhex(self->routing_id));
                     }
                     if (!self->exception) {
                         //  handle set wakeup
@@ -481,6 +482,14 @@ s_client_execute(s_client_t *self, event_t event) {
                     }
                 } else if (self->event == send_heartbeat_event) {
                     if (!self->exception) {
+                        //  check timeouts
+                        if (self->server->verbose)
+                            zsys_debug("%s:         $ check timeouts", self->log_prefix);
+                        if (-1 == check_timeouts(&self->client)) {
+                            zsys_warning("Heartbeats timed out for worker %s", zframe_strhex(self->routing_id));
+                        }
+                    }
+                    if (!self->exception) {
                         //  send HEARTBEAT
                         if (self->server->verbose)
                             zsys_debug("%s:         $ send HEARTBEAT",
@@ -488,14 +497,7 @@ s_client_execute(s_client_t *self, event_t event) {
                         mdp_msg_set_id(self->server->message, MDP_MSG_HEARTBEAT);
                         mdp_msg_set_routing_id(self->server->message, self->routing_id);
                         mdp_msg_send(self->server->message, self->server->router);
-                    }
-                    if (!self->exception) {
-                        //  check timeouts
-                        if (self->server->verbose)
-                            zsys_debug("%s:         $ check timeouts", self->log_prefix);
-                        check_timeouts(&self->client);
-                    }
-                    if (!self->exception) {
+
                         //  handle set wakeup
                         if (self->server->verbose)
                             zsys_debug("%s:         $ handle set wakeup", self->log_prefix);
