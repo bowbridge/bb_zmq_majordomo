@@ -378,7 +378,6 @@ s_client_destroy(s_client_t **self_p) {
 
     if (*self_p) {
         s_client_t *self = *self_p;
-        delete_worker((client_t *) self);
         if (self->wakeup)
             zloop_timer_end(self->server->loop, self->wakeup);
         if (self->ticket)
@@ -487,6 +486,7 @@ s_client_execute(s_client_t *self, event_t event) {
                             zsys_debug("%s:         $ check timeouts", self->log_prefix);
                         if (-1 == check_timeouts(&self->client)) {
                             zsys_warning("Heartbeats timed out for worker %s", zframe_strhex(self->routing_id));
+                            delete_worker((client_t *) self);
                         }
                     }
                     if (!self->exception) {
