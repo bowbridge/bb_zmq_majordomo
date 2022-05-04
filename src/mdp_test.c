@@ -142,6 +142,15 @@ main() {
 
     }
 
+    zactor_destroy(&broker);
+
+    sleep(20);
+
+    broker = zactor_new(mdp_broker, "server");
+    // zstr_send(broker, "VERBOSE");
+    zstr_sendx(broker, "KEYS", BROKER_PK, BROKER_SK, "/home/joerg/authkeys.txt", NULL);
+    zstr_sendx(broker, "BIND", endpoint_bind, NULL);
+
 
     /* for (i = 0; i < 5; i++) {
          char *result = NULL;
@@ -240,7 +249,7 @@ main() {
         zmsg_destroy(&mmi_msg);
         free(result);
         free(waiting);
-
+        sleep(1);
     }
 
 

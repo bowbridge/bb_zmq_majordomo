@@ -478,7 +478,8 @@ s_client_execute(s_client_t *self, event_t event) {
                         }
                         if (check_timeouts(&self->client)) {
                             zsys_debug("Broker heartbeats expired for worker %p", self);
-                            self->client.timeouts = 0;
+                            zsock_disconnect(self->dealer, "%s", self->args.endpoint);
+                            reset_timeouts(&self->client);
                             self->state = start_state;
                         }
                     }
