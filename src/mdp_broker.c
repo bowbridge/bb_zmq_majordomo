@@ -382,7 +382,7 @@ handle_mmi(client_t *self, const char *service_name) {
                                               zlist_size(service->waiting), zlist_size(service->requests));
                     } else if (streq(svc, "json")) {
                         result = zsys_sprintf(
-                                "%s {\"name\":\"%s\" ,\"workers\":\"%d\", \"waiting\":\"%d\", \"requests-queued\":\"%d\"}",
+                                "%s \"%s\":{\"workers\":\"%d\", \"waiting\":\"%d\", \"requests-queued\":\"%d\"}",
                                 oldresult, service->name,
                                 service->workers,
                                 zlist_size(service->waiting), zlist_size(service->requests));
