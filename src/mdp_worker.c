@@ -54,10 +54,10 @@ typedef struct {
 
 // Maximum number of timeouts; If this number is reached, we stop sending
 // heartbeats and terminate connection.
-#define MAX_TIMEOUTS 5
+#define MAX_TIMEOUTS 3
 
 // Interval for sending heartbeat [ms]
-#define HEARTBEAT_DELAY 2500
+#define HEARTBEAT_DELAY 3000
 
 static int s_worker_encrypt_body_frames(zmsg_t *body, unsigned char *key) {
     if (NULL != body && NULL != key) {
