@@ -363,38 +363,65 @@ handle_mmi(client_t *self, const char *service_name) {
                 zstr_free(&svc_lookup);
             }
         }
-        if (strstr(service_name, "mmi.workers")) {
-            char *svc_lookup = zmsg_popstr(mmibody);
-            if (svc_lookup) {
-                service_t *service = (service_t *) zhash_lookup(self->server->services, svc_lookup);
-                if (service) {
-                    zstr_free(&result);
-                    result = zsys_sprintf("%d", service->workers);
-                } else {
-                    zstr_free(&result);
-                    result = zsys_sprintf("-1");
-                }
-                zstr_free(&svc_lookup);
-            }
-        }
 
-        if (strstr(service_name, "mmi.waiting")) {
-            char *svc_lookup = zmsg_popstr(mmibody);
-            if (svc_lookup) {
-                service_t *service = (service_t *) zhash_lookup(self->server->services, svc_lookup);
+
+        if (strstr(service_name, "mmi.status")) {
+            char *svc = zmsg_popstr(mmibody);
+            if (streq(svc, "all") || streq(svc, "raw") || streq(svc, "json")) {
+                service_t *service = (service_t *) zhash_first(self->server->services);
+                char *oldresult = NULL;
+                if (streq(svc, "json")) {
+                    oldresult = zsys_sprintf("{");
+                } else {
+                    oldresult = zsys_sprintf("");
+                }
+                while (service) {
+                    if (streq(svc, "raw")) {
+                        result = zsys_sprintf("%s%s;%d;%d;%d\n", oldresult, service->name,
+                                              service->workers,
+                                              zlist_size(service->waiting), zlist_size(service->requests));
+                    } else if (streq(svc, "json")) {
+                        result = zsys_sprintf(
+                                "%s {\"name\":\"%s\" ,\"workers\":\"%d\", \"waiting\":\"%d\", \"requests-queued\":\"%d\"}",
+                                oldresult, service->name,
+                                service->workers,
+                                zlist_size(service->waiting), zlist_size(service->requests));
+                    } else {
+                        result = zsys_sprintf("%s%s: %d active, %d waiting, %d requests queued\n", oldresult,
+                                              service->name,
+                                              service->workers,
+                                              zlist_size(service->waiting), zlist_size(service->requests));
+                    }
+                    zstr_free(&oldresult);
+                    oldresult = result;
+                    service = (service_t *) zhash_next(self->server->services);
+                    if (streq(svc, "json")) {
+                        if (NULL != service) {
+                            result = zsys_sprintf("%s, ", oldresult);
+                        } else {
+                            result = zsys_sprintf("%s }", oldresult);
+                        }
+                        zstr_free(&oldresult);
+                        oldresult = result;
+                    }
+                }
+            } else {
+                service_t *service = (service_t *) zhash_lookup(self->server->services, svc);
                 if (service) {
                     zstr_free(&result);
                     result = zsys_sprintf("%d", zlist_size(service->waiting));
                 } else {
                     zstr_free(&result);
-                    result = zsys_sprintf("-1");
+                    result = zsys_sprintf("404");
+
                 }
-                zstr_free(&svc_lookup);
+                zstr_free(&svc);
+
             }
         }
-    }
 
-    zmsg_destroy(&mmibody); // no longer needed
+        zmsg_destroy(&mmibody); // no longer needed
+    }
 
     // Set routing id, messageid, service, body
     mdp_msg_t *client_msg = mdp_msg_new();

@@ -142,14 +142,6 @@ main() {
 
     }
 
-    zactor_destroy(&broker);
-
-    sleep(20);
-
-    broker = zactor_new(mdp_broker, "server");
-    // zstr_send(broker, "VERBOSE");
-    zstr_sendx(broker, "KEYS", BROKER_PK, BROKER_SK, "/home/joerg/authkeys.txt", NULL);
-    zstr_sendx(broker, "BIND", endpoint_bind, NULL);
 
 
     /* for (i = 0; i < 5; i++) {
@@ -234,21 +226,11 @@ main() {
         char *result = NULL;
 
         mmi_msg = zmsg_new();
-        zmsg_addstr(mmi_msg, service);
-        mdp_client_request(client, "mmi.workers", &mmi_msg);
+        zmsg_addstr(mmi_msg, "json");
+        mdp_client_request(client, "mmi.status", &mmi_msg);
         zsock_recv(client_sock, "ssm", &_cmd, &result, &mmi_msg);
+        zsys_debug(result);
         free(_cmd);
-        zmsg_destroy(&mmi_msg);
-        char *waiting = NULL;
-        mmi_msg = zmsg_new();
-        zmsg_addstr(mmi_msg, service);
-        mdp_client_request(client, "mmi.waiting", &mmi_msg);
-        zsock_recv(client_sock, "ssm", &_cmd, &waiting, &mmi_msg);
-        zsys_debug("*************************************  Workers: %s, Waiting: %s", result, waiting);
-        free(_cmd);
-        zmsg_destroy(&mmi_msg);
-        free(result);
-        free(waiting);
         sleep(1);
     }
 
@@ -266,20 +248,11 @@ main() {
 
         mmi_msg = zmsg_new();
         zmsg_addstr(mmi_msg, service);
-        mdp_client_request(client, "mmi.workers", &mmi_msg);
+        mdp_client_request(client, "mmi.status", &mmi_msg);
         zsock_recv(client_sock, "ssm", &_cmd, &result, &mmi_msg);
+        zsys_debug(result);
         free(_cmd);
         zmsg_destroy(&mmi_msg);
-        char *waiting = NULL;
-        mmi_msg = zmsg_new();
-        zmsg_addstr(mmi_msg, service);
-        mdp_client_request(client, "mmi.waiting", &mmi_msg);
-        zsock_recv(client_sock, "ssm", &_cmd, &waiting, &mmi_msg);
-        zsys_debug("*************************************  Workers: %s, Waiting: %s", result, waiting);
-        free(_cmd);
-        zmsg_destroy(&mmi_msg);
-        free(result);
-        free(waiting);
         sleep(1);
     }
 
