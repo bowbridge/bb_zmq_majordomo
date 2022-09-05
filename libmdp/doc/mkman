@@ -27,7 +27,7 @@ $top_srcdir = "..";
 
 #   Look for class title in 2nd line of source
 #   If there's no class file, leave hand-written man page alone
-exit unless open (SOURCE, "$top_srcdir/src/$class.c");
+exit unless open (SOURCE, "$top_srcdir/include/$class.c");
 $_ = <SOURCE>;
 $_ = <SOURCE>;
 $title = "no title found";

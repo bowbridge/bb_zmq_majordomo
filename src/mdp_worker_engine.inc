@@ -451,22 +451,12 @@ s_client_execute(s_client_t *self, event_t event) {
                         if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ signal request");
                         }
+                        reset_timeouts(&self->client);
                         signal_request(&self->client);
                     }
                     if (!self->exception)
                         self->state = wait_for_response_state;
                 } else if (self->event == send_heartbeat_event) {
-                    if (!self->exception) {
-                        //  check timeouts
-                        if (mdp_worker_verbose) {
-                            zsys_debug("mdp_worker:            $ check timeouts for %p", self);
-                        }
-                        if (check_timeouts(&self->client)) {
-                            zsys_debug("Broker heartbeats expired for worker %p", self);
-                            self->client.timeouts = 0;
-                            self->state = start_state;
-                        }
-                    }
                     if (!self->exception) {
                         //  send HEARTBEAT
                         if (mdp_worker_verbose) {
@@ -474,14 +464,26 @@ s_client_execute(s_client_t *self, event_t event) {
                         }
                         mdp_worker_msg_set_id(self->message, MDP_WORKER_MSG_HEARTBEAT);
                         mdp_worker_msg_send(self->message, self->dealer);
-                    }
-                    if (!self->exception) {
+
                         //  handle set wakeup
                         if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ handle set wakeup");
                         }
                         handle_set_wakeup(&self->client);
                     }
+                    if (!self->exception) {
+                        //  check timeouts
+                        if (mdp_worker_verbose) {
+                            zsys_debug("mdp_worker:            $ check timeouts for %p", self);
+                        }
+                        if (check_timeouts(&self->client)) {
+                            zsys_debug("Broker heartbeats expired for worker %p", self);
+                            zsock_disconnect(self->dealer, "%s", self->args.endpoint);
+                            reset_timeouts(&self->client);
+                            self->state = start_state;
+                        }
+                    }
+
                 } else if (self->event == heartbeat_event) {
                     if (!self->exception) {
                         //  reset timeouts
@@ -489,8 +491,7 @@ s_client_execute(s_client_t *self, event_t event) {
                             zsys_debug("mdp_worker:            $ reset timeouts");
                         }
                         reset_timeouts(&self->client);
-                    }
-                    if (!self->exception) {
+
                         //  handle set wakeup
                         if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ handle set wakeup");
@@ -697,9 +698,11 @@ s_client_handle_cmdpipe(zloop_t *loop, zsock_t *reader, void *argument) {
         zsock_recv(self->cmdpipe, "ssss", &self->args.endpoint, &self->args.service, &self->client.auth_key,
                    &self->client.broker_pk);
         if (0 == strlen((char *) self->client.auth_key)) {
+            free(self->client.auth_key);
             self->client.auth_key = NULL;
         }
         if (0 == strlen((char *) self->client.broker_pk)) {
+            free(self->client.broker_pk);
             self->client.broker_pk = NULL;
         }
 
