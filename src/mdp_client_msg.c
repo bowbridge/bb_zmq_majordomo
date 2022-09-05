@@ -307,9 +307,9 @@ mdp_client_msg_recv(mdp_client_msg_t *self, zsock_t *input) {
             GET_STRING (self->service);
             //  Get zero or more remaining frames
             zmsg_destroy(&self->body);
-            if (zsock_rcvmore(input))
+            if (zsock_rcvmore(input)) {
                 self->body = zmsg_recv(input);
-            else
+            } else
                 self->body = zmsg_new();
             break;
 

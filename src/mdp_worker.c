@@ -54,12 +54,12 @@ typedef struct {
 
 // Maximum number of timeouts; If this number is reached, we stop sending
 // heartbeats and terminate connection.
-#define MAX_TIMEOUTS 3
+#define MAX_TIMEOUTS 7
 
 // Interval for sending heartbeat [ms]
-#define HEARTBEAT_DELAY 2500
+#define HEARTBEAT_DELAY 1500
 
-static int s_worker_encrypt_body(zmsg_t *body, unsigned char *key) {
+static int s_worker_encrypt_body_frames(zmsg_t *body, unsigned char *key) {
     if (NULL != body && NULL != key) {
         // encrypt the original body - frame by frame
         int num_frames = (int) zmsg_size(body);
@@ -73,8 +73,7 @@ static int s_worker_encrypt_body(zmsg_t *body, unsigned char *key) {
         memcpy(nonce, initial_nonce, crypto_secretbox_NONCEBYTES);
 
         int i = 0;
-        zsys_debug("WORKER: Encrypting with key %2x %2x ... %2x %2x ", key[0], key[1],
-                   key[crypto_kx_SESSIONKEYBYTES - 2], key[crypto_kx_SESSIONKEYBYTES - 1]);
+        //zsys_debug("WORKER: Encrypting with key %2x %2x ... %2x %2x ", key[0], key[1],key[crypto_kx_SESSIONKEYBYTES - 2], key[crypto_kx_SESSIONKEYBYTES - 1]);
         for (i = 0; i < num_frames; i++) {
             zframe_t *frame = zmsg_pop(body);
             if (NULL != frame) {
@@ -121,82 +120,104 @@ static int s_worker_encrypt_body(zmsg_t *body, unsigned char *key) {
     return -1;
 }
 
-static int s_worker_decrypt_body(mdp_worker_msg_t *worker_msg, unsigned char *key) {
-    int i;
+static int s_worker_decrypt_body_frames(zmsg_t *body, unsigned char *key) {
     int rc = -1;
-    zmsg_t *body = mdp_worker_msg_body(worker_msg);
     if (NULL != body && NULL != key) {
-        zmsg_t *body_decrypted = zmsg_new();
-        if (body_decrypted) {
-            unsigned char nonce[crypto_secretbox_NONCEBYTES];
-            zframe_t *frame = zmsg_pop(body);
-            if (frame) {
-                // nonce frame
-                memcpy(nonce, zframe_data(frame), crypto_secretbox_NONCEBYTES);
-                zframe_destroy(&frame);
-                int num_frames = (int) zmsg_size(body) - 1;
-                zsys_debug("WORKER: Decrypting with key %2x %2x ... %2x %2x ", key[0], key[1],
-                           key[crypto_kx_SESSIONKEYBYTES - 2], key[crypto_kx_SESSIONKEYBYTES - 1]);
-                for (i = 0; i < num_frames; i++) {
-                    frame = zmsg_pop(body);
-                    if (frame) {
-                        unsigned char *ciphertext = zframe_data(frame);
-                        if (ciphertext) {
-                            size_t ciphertextlen = zframe_size(frame);
-                            size_t plaintextlen = ciphertextlen - crypto_secretbox_MACBYTES;
-                            unsigned char *plaintext = (unsigned char *) zmalloc(plaintextlen);
-                            if (plaintext) {
-
-                                if (0 == crypto_secretbox_open_easy(plaintext, ciphertext,
-                                                                    (unsigned long long int) ciphertextlen, nonce,
-                                                                    key)) {
-                                    // zsys_debug("WORKER: decrypted data frame #%d", (i + 1));
-                                    zmsg_addmem(body_decrypted, plaintext, plaintextlen);
-                                } else {
-                                    zsys_error("WORKER: Failed to decrypt data frame #%d", (i + 1));
-                                    return -1;
-                                }
+        // decrypt the body, frame by frame
+        unsigned char nonce[crypto_secretbox_NONCEBYTES];
+        zframe_t *nonce_frame = zmsg_pop(body);
+        if (nonce_frame) {
+            // nonce frame
+            memcpy(nonce, zframe_data(nonce_frame), crypto_secretbox_NONCEBYTES);
+            zframe_destroy(&nonce_frame);
+            int num_frames = (int) zmsg_size(body) - 1;
+            int i = 0;
+            //zsys_debug("WORKER: Decrypting with key %2x %2x ... %2x %2x ", key[0], key[1],key[crypto_kx_SESSIONKEYBYTES - 2], key[crypto_kx_SESSIONKEYBYTES - 1]);
+            int errror_count = 0;
+            zframe_t *data_frame;
+            for (i = 0; i < num_frames; i++) {
+                data_frame = zmsg_pop(body);
+                if (data_frame) {
+                    unsigned char *ciphertext = zframe_data(data_frame);
+                    if (ciphertext) {
+                        size_t ciphertextlen = zframe_size(data_frame);
+                        size_t plaintextlen = ciphertextlen - crypto_secretbox_MACBYTES;
+                        unsigned char *plaintext = (unsigned char *) zmalloc(plaintextlen);
+                        if (plaintext) {
+                            if (0 == crypto_secretbox_open_easy(plaintext, ciphertext,
+                                                                (unsigned long long int) ciphertextlen, nonce,
+                                                                key)) {
+                                zmsg_addmem(body, plaintext, plaintextlen);
                                 free(plaintext);
-                                plaintext = NULL;
+
+                                // zsys_debug("WORKER: decrypted data frame #%d", (i + 1));
+                                // increment the nonce for the next frame (if any)
+                                sodium_increment(nonce, crypto_secretbox_NONCEBYTES);
                             } else {
-                                zmsg_destroy(&body);
-                                return -1;
+                                errror_count++;
                             }
                         }
-                        zframe_destroy(&frame);
-                        // increment the nonce for the next frame (if any)
-                        sodium_increment(nonce, crypto_secretbox_NONCEBYTES);
-                    } else {
-                        return -1;
                     }
+                    zframe_destroy(&data_frame);
                 }
-
-
+            }
+            if (0 == errror_count) {
                 // get/decrypt "Canary" frame
-                frame = zmsg_pop(body);
-                mdp_worker_msg_set_body(worker_msg, &body_decrypted);
-                size_t ciphertextlen = zframe_size(frame);
+                data_frame = zmsg_pop(body);
+                size_t ciphertextlen = zframe_size(data_frame);
                 size_t plaintextlen = ciphertextlen - crypto_secretbox_MACBYTES;
                 unsigned char *plaintext = (unsigned char *) zmalloc(plaintextlen);
-                int res = crypto_secretbox_open_easy(plaintext, zframe_data(frame),
+                int res = crypto_secretbox_open_easy(plaintext, zframe_data(data_frame),
                                                      (unsigned long long int) ciphertextlen, nonce,
                                                      key);
-                if (0 != res ||
-                    0 != memcmp(plaintext, "BB_MDP_SECURE", strlen("BB_MDP_SECURE"))) {
+                zframe_destroy(&data_frame);
+                if (0 == res &&
+                    0 == memcmp(plaintext, "BB_MDP_SECURE", strlen("BB_MDP_SECURE"))) {
+                    rc = 0;
+                } else {
                     zsys_error("WORKER: Decryption error - Check failed");
-                    zframe_destroy(&frame);
-                    rc = -1;
+                    zmsg_destroy(&body);
+
                 }
-                if (plaintext) {
-                    free(plaintext);
-                }
-                zframe_destroy(&frame);
+                free(plaintext);
+            } else {
+                zsys_error("WORKER: Failed to decrypt at least one data frame");
             }
+        } else {
+            zsys_error("WORKER: malformed body: no data frame");
         }
     }
     return rc;
 }
 
+static int s_worker_decrypt_request_body(client_t *self, mdp_worker_msg_t *worker_msg) {
+    int rc = -1;
+    zmsg_t *body = mdp_worker_msg_body(worker_msg);
+    if (body) {
+        zframe_t *enc_if = zmsg_pop(body);
+        if (enc_if) {
+            if (zframe_streq(enc_if, "BB_MDP_SECURE")) {
+                rc = s_worker_decrypt_body_frames(body, self->session_key_rx);
+            } else if (zframe_streq(enc_if, "BB_MDP_PLAIN")) {
+                rc = 0;
+            } else {
+                zsys_error("Malformed request body - no encryption indicator");
+            }
+            zframe_destroy(&enc_if);
+        }
+    }
+    return rc;
+}
+
+static int s_worker_encrypt_reply_body(client_t *self) {
+    int rc = -1;
+    if (NULL != self->session_key_tx) {
+        rc = s_worker_encrypt_body_frames(self->args->reply_body, self->session_key_tx);
+    } else {
+        rc = zmsg_pushstr(self->args->reply_body, "BB_MDP_PLAIN");
+    }
+    return rc;
+}
 
 //  Allocate properties and structures for a new client instance.
 //  Return 0 if OK, -1 if failed
@@ -282,21 +303,11 @@ signal_connection_success(client_t *self) {
 static void
 signal_request(client_t *self) {
     mdp_worker_msg_t *worker_msg = self->message;
-
-    // Check if this is encrypted
-    zmsg_t *body = mdp_worker_msg_body(worker_msg);
-    zframe_t *frame = zmsg_pop(body);
-    if (frame) {
-        if (zframe_streq(frame, "BB_MDP_SECURE")) {
-            s_worker_decrypt_body(worker_msg, self->session_key_rx);
-            // refresh the pointer to body aft decryption
-            body = mdp_worker_msg_body(worker_msg);
-        }
+    if (0 == s_worker_decrypt_request_body(self, worker_msg)) {
+        zsock_send(self->msgpipe, "sfm", "REQUEST",
+                   mdp_worker_msg_address(worker_msg),
+                   mdp_worker_msg_body(worker_msg));
     }
-
-    zsock_send(self->msgpipe, "sfm", "REQUEST",
-               mdp_worker_msg_address(worker_msg),
-               body);
 }
 
 
@@ -400,13 +411,9 @@ static void
 prepare_partial_response(client_t *self) {
     mdp_worker_msg_t *msg = self->message;
     mdp_worker_msg_set_address(msg, &self->args->address);
-    // Encrypt the body if we need to
-    if (NULL != self->session_key_tx) {
-        s_worker_encrypt_body(self->args->reply_body, self->session_key_tx);
-    } else {
-        zmsg_pushstr(self->args->reply_body, "BB_MDP_PLAIN");
+    if (0 == s_worker_encrypt_reply_body(self)) {
+        mdp_worker_msg_set_body(msg, &self->args->reply_body);
     }
-    mdp_worker_msg_set_body(msg, &self->args->reply_body);
 }
 
 
@@ -418,13 +425,9 @@ static void
 prepare_final_response(client_t *self) {
     mdp_worker_msg_t *msg = self->message;
     mdp_worker_msg_set_address(msg, &self->args->address);
-    // Encrypt the body if we need to
-    if (NULL != self->session_key_tx) {
-        s_worker_encrypt_body(self->args->reply_body, self->session_key_tx);
-    } else {
-        zmsg_pushstr(self->args->reply_body, "BB_MDP_PLAIN");
+    if (0 == s_worker_encrypt_reply_body(self)) {
+        mdp_worker_msg_set_body(msg, &self->args->reply_body);
     }
-    mdp_worker_msg_set_body(msg, &self->args->reply_body);
 }
 
 

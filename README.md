@@ -1,3 +1,10 @@
+Payload encryption for the ZMQ Majordomo protocol
+---------------------------------------------------------------
+This fork adds payload encryption to the popular ZMQ majordomo pattern.
+Encryption happens at the MDP client/broker/worker level and is performed at the level of data frames.
+
+
+
 A service oriented broker that implements the Majordomo protocol
 ----------------------------------------------------------------
 

@@ -219,7 +219,9 @@ mdp_msg_destroy(mdp_msg_t **self_p) {
 
         //  Free class properties
         zframe_destroy(&self->routing_id);
-        zmsg_destroy(&self->body);
+        if (self->body) {
+            zmsg_destroy(&self->body);
+        }
         zframe_destroy(&self->address);
         zframe_destroy(&self->empty);
 
@@ -287,10 +289,12 @@ mdp_msg_recv(mdp_msg_t *self, zsock_t *input) {
             }
             GET_STRING (self->service);
             //  Get zero or more remaining frames
-            zmsg_destroy(&self->body);
-            if (zsock_rcvmore(input))
+            if (self->body) {
+                zmsg_destroy(&self->body);
+            }
+            if (zsock_rcvmore(input)) {
                 self->body = zmsg_recv(input);
-            else
+            } else
                 self->body = zmsg_new();
             break;
 
@@ -312,10 +316,12 @@ mdp_msg_recv(mdp_msg_t *self, zsock_t *input) {
             }
             GET_STRING (self->service);
             //  Get zero or more remaining frames
-            zmsg_destroy(&self->body);
-            if (zsock_rcvmore(input))
+            if (self->body) {
+                zmsg_destroy(&self->body);
+            }
+            if (zsock_rcvmore(input)) {
                 self->body = zmsg_recv(input);
-            else
+            } else
                 self->body = zmsg_new();
             break;
 
@@ -337,10 +343,12 @@ mdp_msg_recv(mdp_msg_t *self, zsock_t *input) {
             }
             GET_STRING (self->service);
             //  Get zero or more remaining frames
-            zmsg_destroy(&self->body);
-            if (zsock_rcvmore(input))
+            if (self->body) {
+                zmsg_destroy(&self->body);
+            }
+            if (zsock_rcvmore(input)) {
                 self->body = zmsg_recv(input);
-            else
+            } else
                 self->body = zmsg_new();
             break;
 
@@ -362,9 +370,12 @@ mdp_msg_recv(mdp_msg_t *self, zsock_t *input) {
             }
             GET_STRING (self->service);
             //  Get zero or more remaining frames
-            zmsg_destroy(&self->body);
-            if (zsock_rcvmore(input))
+            if (self->body) {
+                zmsg_destroy(&self->body);
+            }
+            if (zsock_rcvmore(input)) {
                 self->body = zmsg_recv(input);
+            }
             break;
 
         case MDP_MSG_WORKER_REQUEST: {
@@ -398,10 +409,11 @@ mdp_msg_recv(mdp_msg_t *self, zsock_t *input) {
             zframe_destroy(&self->empty);
             self->empty = zframe_recv(input);
             //  Get zero or more remaining frames
-            zmsg_destroy(&self->body);
-            if (zsock_rcvmore(input))
+            if (self->body)
+                zmsg_destroy(&self->body);
+            if (zsock_rcvmore(input)) {
                 self->body = zmsg_recv(input);
-            else
+            } else
                 self->body = zmsg_new();
             break;
 
@@ -436,10 +448,12 @@ mdp_msg_recv(mdp_msg_t *self, zsock_t *input) {
             zframe_destroy(&self->empty);
             self->empty = zframe_recv(input);
             //  Get zero or more remaining frames
-            zmsg_destroy(&self->body);
-            if (zsock_rcvmore(input))
+            if (self->body) {
+                zmsg_destroy(&self->body);
+            }
+            if (zsock_rcvmore(input)) {
                 self->body = zmsg_recv(input);
-            else
+            } else
                 self->body = zmsg_new();
             break;
 
@@ -474,10 +488,12 @@ mdp_msg_recv(mdp_msg_t *self, zsock_t *input) {
             zframe_destroy(&self->empty);
             self->empty = zframe_recv(input);
             //  Get zero or more remaining frames
-            zmsg_destroy(&self->body);
-            if (zsock_rcvmore(input))
+            if (self->body) {
+                zmsg_destroy(&self->body);
+            }
+            if (zsock_rcvmore(input)) {
                 self->body = zmsg_recv(input);
-            else
+            } else
                 self->body = zmsg_new();
             break;
 
@@ -968,7 +984,9 @@ void
 mdp_msg_set_body(mdp_msg_t *self, zmsg_t **msg_p) {
     assert (self);
     assert (msg_p);
-    zmsg_destroy(&self->body);
+    if (self->body) {
+        zmsg_destroy(&self->body);
+    }
     self->body = *msg_p;
     *msg_p = NULL;
 }
