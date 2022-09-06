@@ -478,8 +478,8 @@ s_client_execute(s_client_t *self, event_t event) {
                         }
                         int _timeouts = check_timeouts(&self->client);
                         if (-1 == _timeouts) {
-                            zsys_debug("Broker heartbeats expired for worker %p", self);
-                            fprintf(stderr, "Broker heartbeats expired for worker %p\r\n", self);
+                            zsys_debug("heartbeats from broker expired for worker %p", self);
+                            fprintf(stderr, "heartbeats from broker expired for worker %p\r\n", self);
                             zsock_disconnect(self->dealer, "%s", self->args.endpoint);
                             reset_timeouts(&self->client);
                             self->state = start_state;
