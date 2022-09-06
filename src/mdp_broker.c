@@ -99,7 +99,7 @@ struct _client_t {
 
 // Maximum number of timeouts; If this number is reached, we stop sending
 // heartbeats and terminate connection.
-#define MAX_TIMEOUTS 7
+#define MAX_TIMEOUTS 5
 
 // Interval for sending heartbeat [ms]
 #define HEARTBEAT_DELAY 1500
