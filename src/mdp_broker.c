@@ -788,6 +788,7 @@ handle_ready(client_t *self) {
     if (routing_id) {
         char *identity = zframe_strhex(routing_id);
         zsys_debug("handle_ready: worker %s reports READY for service=\"%s\"", identity, service_name);
+        fprintf(stdout, "handle_ready: worker %s reports READY for service=\"%s\"\r\n", identity, service_name);
 
         int worker_ready = (zhash_lookup(self->server->workers, identity) != NULL);
         free(identity);
