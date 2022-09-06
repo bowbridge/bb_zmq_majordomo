@@ -198,10 +198,23 @@ s_service_require(server_t *self, const char *service_name) {
     return service;
 }
 
+/*
+static worker_t *s_get_random_worker(zlist_t *list) {
+    size_t elements = zlist_size(list);
+    int index = (int) (rand() % elements) - 1;
+    worker_t *worker = (worker_t *) zlist_first(list);
+    while (NULL != worker && --index > 0) {
+        worker = (worker_t *) zlist_next(list);
+    }
+    return worker;
+}
+ */
+
 static void
 s_service_dispatch(service_t *self) {
     while ((zlist_size(self->requests) > 0) &&
            (zlist_size(self->waiting) > 0)) {
+        //worker_t *worker = s_get_random_worker(self->waiting);
         worker_t *worker = (worker_t *) zlist_pop(self->waiting);
         zlist_remove(self->broker->waiting, worker);
         mdp_msg_t *msg = (mdp_msg_t *) zlist_pop(self->requests);
@@ -306,36 +319,6 @@ client_terminate(client_t *self) {
         free(self->session_key_rx);
     if (self->client_pk)
         free(self->client_pk);
-}
-
-//  ---------------------------------------------------------------------------
-//  Selftest
-
-void
-mdp_broker_test(bool verbose) {
-    printf(" * mdp_broker: ");
-    if (verbose)
-        printf("\n");
-
-    //  @selftest
-    zactor_t *server = zactor_new(mdp_broker, "server");
-    if (verbose)
-        zstr_send(server, "VERBOSE");
-    zstr_sendx(server, "BIND", "ipc://@/mdp_broker", NULL);
-
-    zsock_t *client = zsock_new(ZMQ_DEALER);
-    assert(client);
-    zsock_set_rcvtimeo(client, 2000);
-    zsock_connect(client, "ipc://@/mdp_broker");
-
-    //  TODO: fill this out
-    mdp_msg_t *request = mdp_msg_new();
-    mdp_msg_destroy(&request);
-
-    zsock_destroy(&client);
-    zactor_destroy(&server);
-    //  @end
-    printf("OK\n");
 }
 
 //  ---------------------------------------------------------------------------
@@ -802,80 +785,82 @@ handle_ready(client_t *self) {
     mdp_msg_t *msg = self->message;
     const char *service_name = mdp_msg_service(msg);
     zframe_t *routing_id = mdp_msg_routing_id(msg);
-    assert(routing_id);
-    char *identity = zframe_strhex(routing_id);
-    // zsys_debug("handle_ready: worker %s reports READY for service=%s", identity, service_name);
+    if (routing_id) {
+        char *identity = zframe_strhex(routing_id);
+        zsys_debug("handle_ready: worker %s reports READY for service=\"%s\"", identity, service_name);
 
-    int worker_ready = (zhash_lookup(self->server->workers, identity) != NULL);
-    free(identity);
+        int worker_ready = (zhash_lookup(self->server->workers, identity) != NULL);
+        free(identity);
 
-    worker_t *worker = s_worker_require(self->server, routing_id);
-    if (worker_ready) // Not first command in session.
-    {
-        s_worker_delete(worker, 1);
-    } else {
-        // store reference to the worker in the client struct
-        self->worker = worker;
+        worker_t *worker = s_worker_require(self->server, routing_id);
+        if (worker_ready) // Not first command in session.
+        {
+            s_worker_delete(worker, 1);
+        } else {
+            // store reference to the worker in the client struct
+            self->worker = worker;
 
-        // Check if we need to perform the key exchange
-        zmsg_t *ready_body = mdp_msg_get_body(msg);
-        if (ready_body) {
-            zframe_t *f = zmsg_pop(ready_body); // empty frame
-            if (f)
-                zframe_destroy(&f);
-            f = zmsg_pop(ready_body); // authkey?
-            if (f) {
-                char *authkey = zframe_strdup(f);
-                if (self->server->known_psks) {
-                    if (authkey) {
-                        //zsys_debug("Got worker Authkey: %s", authkey);
-                        //check if we know this worker's authkey
-                        int res = zlist_exists(self->server->known_psks, authkey);
-                        free(authkey);
-                        if (0 == res) {
-                            zsys_warning("Worker authenticated with an unknown key");
-                            s_worker_delete(worker, 1);
-                            //zmsg_destroy(&ready_body);
-                            return;
-                        }
-                        zframe_destroy(&f);
-                        f = zmsg_pop(ready_body);
-                        if (f) {
-                            //zsys_debug("Got worker KX PK frame : %s", zframe_strhex(f));
-                            unsigned char *worker_kx_pk = (unsigned char *) zframe_strdup(f);
+            // Check if we need to perform the key exchange
+            zmsg_t *ready_body = mdp_msg_get_body(msg);
+            if (ready_body) {
+                zframe_t *f = zmsg_pop(ready_body); // empty frame
+                if (f)
+                    zframe_destroy(&f);
+                f = zmsg_pop(ready_body); // authkey?
+                if (f) {
+                    char *authkey = zframe_strdup(f);
+                    if (self->server->known_psks) {
+                        if (authkey) {
+                            //zsys_debug("Got worker Authkey: %s", authkey);
+                            //check if we know this worker's authkey
+                            int res = zlist_exists(self->server->known_psks, authkey);
+                            free(authkey);
+                            if (0 == res) {
+                                zsys_warning("Worker authenticated with an unknown key");
+                                s_worker_delete(worker, 1);
+                                //zmsg_destroy(&ready_body);
+                                return;
+                            }
                             zframe_destroy(&f);
-                            if (worker_kx_pk) {
-                                if (self->server->my_sk && self->server->my_pk) {
-                                    // generate keys
-                                    worker->session_key_tx = (unsigned char *) zmalloc(crypto_kx_SESSIONKEYBYTES);
-                                    worker->session_key_rx = (unsigned char *) zmalloc(crypto_kx_SESSIONKEYBYTES);
+                            f = zmsg_pop(ready_body);
+                            if (f) {
+                                //zsys_debug("Got worker KX PK frame : %s", zframe_strhex(f));
+                                unsigned char *worker_kx_pk = (unsigned char *) zframe_strdup(f);
+                                zframe_destroy(&f);
+                                if (worker_kx_pk) {
+                                    if (self->server->my_sk && self->server->my_pk) {
+                                        // generate keys
+                                        worker->session_key_tx = (unsigned char *) zmalloc(crypto_kx_SESSIONKEYBYTES);
+                                        worker->session_key_rx = (unsigned char *) zmalloc(crypto_kx_SESSIONKEYBYTES);
 
-                                    if (crypto_kx_server_session_keys(worker->session_key_rx, worker->session_key_tx,
-                                                                      self->server->my_pk, self->server->my_sk,
-                                                                      worker_kx_pk) !=
-                                        0) {
-                                        zsys_error("Failed to create session keys");
-                                        s_worker_delete(worker, 1);
-                                        free(worker_kx_pk);
-                                        return;
+                                        if (crypto_kx_server_session_keys(worker->session_key_rx,
+                                                                          worker->session_key_tx,
+                                                                          self->server->my_pk, self->server->my_sk,
+                                                                          worker_kx_pk) !=
+                                            0) {
+                                            zsys_error("Failed to create session keys");
+                                            s_worker_delete(worker, 1);
+                                            free(worker_kx_pk);
+                                            return;
+                                        }
                                     }
+                                    free(worker_kx_pk);
                                 }
-                                free(worker_kx_pk);
                             }
                         }
+                    } else {
+                        zsys_error("No known_worker keys loaded");
                     }
-                } else {
-                    zsys_error("No known_worker keys loaded");
                 }
+                zmsg_destroy(&ready_body);
             }
-            zmsg_destroy(&ready_body);
+            service_t *service = s_service_require(self->server, service_name);
+            worker->service = service;
+            zlist_append(service->broker->waiting, worker);
+            zlist_append(service->waiting, worker);
+            worker->service->workers++;
+            s_service_dispatch(service);
         }
-        service_t *service = s_service_require(self->server, service_name);
-        worker->service = service;
-        zlist_append(service->broker->waiting, worker);
-        zlist_append(service->waiting, worker);
-        worker->service->workers++;
-        s_service_dispatch(service);
     }
 }
 
@@ -896,6 +881,7 @@ reset_timeouts(client_t *self) {
 
 static void
 handle_set_wakeup(client_t *self) {
+    // sending in 10% shorter intervals than we're checking
     engine_set_wakeup_event(self, HEARTBEAT_DELAY, send_heartbeat_event);
 }
 
@@ -922,5 +908,5 @@ check_timeouts(client_t *self) {
         engine_set_exception(self, terminate_event);
         return -1;
     }
-    return self->timeouts;
+    return (int) self->timeouts;
 }

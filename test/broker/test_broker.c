@@ -17,10 +17,8 @@
 char *broker_bind_endpoint = "ipc:///tmp/mdp.ipc";
 //char *broker_bind_endpoint = "tcp://localhost:9002";
 //char *broker_bind_endpoint = "tcp://*:9002";
-#define NUM_WORKERS 100
 
-int
-main() {
+int main() {
 
     zactor_t *broker = zactor_new(mdp_broker, "server");
     // zstr_send(broker, "VERBOSE");

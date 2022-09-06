@@ -4,12 +4,11 @@
 
 #include <stdio.h>
 #include <czmq.h>
-#include "testworker.h"
 #include "../../include/mdp_worker.h"
 
 #define WORKER_PK "CZxDrWQr75SAjw3WNYfan4Vnn-cePBolSIYIyf47N0M"
 #define WORKER_SK "_q-xRN6-BcK-zRvd1HgxG7ytMB0n6jnSBwry3H38-6Q"
-#define NUM_WORKERS 50
+#define NUM_WORKERS 30
 
 char *endpoint = "ipc:///tmp/mdp.ipc";
 #define BROKER_PK "ZT77-JRva8XUh5-1po6iCTyNeNNFkJXJhCz6ztIirUw"
@@ -44,7 +43,7 @@ void *worker_function(void *v_service) {
                     zmsg_addstr(worker_response, response);
                     zframe_t *address_partial_reply = zframe_dup(address); // duplicate
                     mdp_worker_send_partial(worker, &address_partial_reply, &worker_response);
-                    zclock_sleep(200);
+                    //zclock_sleep(200);
                     sprintf(response, "Final response to %s", first_str);
                     free(first_str);
                     zmsg_t *worker_final_response = zmsg_new();

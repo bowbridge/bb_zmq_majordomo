@@ -320,30 +320,32 @@ s_satisfy_pedantic_compilers(void) {
 
 static event_t
 s_protocol_event(mdp_msg_t *message) {
-    assert (message);
-    switch (mdp_msg_id(message)) {
-        case MDP_MSG_CLIENT_REQUEST:
-            return client_request_event;
-            break;
-        case MDP_MSG_READY:
-            return ready_event;
-            break;
-        case MDP_MSG_WORKER_PARTIAL:
-            return worker_partial_event;
-            break;
-        case MDP_MSG_WORKER_FINAL:
-            return worker_final_event;
-            break;
-        case MDP_MSG_HEARTBEAT:
-            return heartbeat_event;
-            break;
-        case MDP_MSG_DISCONNECT:
-            return disconnect_event;
-            break;
-        default:
-            zsys_warning("Invalid mdp_msg_t");
-            return terminate_event;
+    if (NULL != message) {
+        switch (mdp_msg_id(message)) {
+            case MDP_MSG_CLIENT_REQUEST:
+                return client_request_event;
+                break;
+            case MDP_MSG_READY:
+                return ready_event;
+                break;
+            case MDP_MSG_WORKER_PARTIAL:
+                return worker_partial_event;
+                break;
+            case MDP_MSG_WORKER_FINAL:
+                return worker_final_event;
+                break;
+            case MDP_MSG_HEARTBEAT:
+                return heartbeat_event;
+                break;
+            case MDP_MSG_DISCONNECT:
+                return disconnect_event;
+                break;
+            default:
+                zsys_warning("Invalid mdp_msg_t");
+                return terminate_event;
+        }
     }
+    return NULL_event;
 }
 
 
@@ -481,12 +483,11 @@ s_client_execute(s_client_t *self, event_t event) {
                 } else if (self->event == send_heartbeat_event) {
                     if (!self->exception) {
                         //  check timeouts
-                        if (self->server->verbose)
+                        if (self->server->verbose) {
                             zsys_debug("%s:         $ check timeouts", self->log_prefix);
-                        if (-1 == check_timeouts(&self->client)) {
-                            zsys_warning("Heartbeats timed out for worker %s for service %s",
-                                         zframe_strhex(self->routing_id), self->client.service_name);
                         }
+                        check_timeouts(&self->client);
+
                     }
                     if (!self->exception) {
                         //  send HEARTBEAT
@@ -841,17 +842,26 @@ s_server_handle_protocol(zloop_t *loop, zsock_t *reader, void *argument) {
         char *hashkey = zframe_strhex(mdp_msg_routing_id(self->message));
         s_client_t *client = (s_client_t *) zhash_lookup(self->clients, hashkey);
         if (client == NULL) {
-            client = s_client_new(self, mdp_msg_routing_id(self->message));
-            zhash_insert(self->clients, hashkey, client);
-            zhash_freefn(self->clients, hashkey, s_client_free);
+            event_t event = s_protocol_event(self->message);
+
+            if (event == ready_event || event == client_request_event) {
+                // Only create new clients for unknown clients, if they're sending
+                // a WORKER READY or CLIENT REQUEST
+                client = s_client_new(self, mdp_msg_routing_id(self->message));
+                zhash_insert(self->clients, hashkey, client);
+                zhash_freefn(self->clients, hashkey, s_client_free);
+            }
         }
         free(hashkey);
-        //  Any input from client counts as activity
-        if (client->ticket)
-            zloop_ticket_reset(self->loop, client->ticket);
+        if (client) {
+            //  Any input from client counts as activity
+            if (client->ticket) {
+                zloop_ticket_reset(self->loop, client->ticket);
+            }
 
-        //  Pass to client state machine
-        s_client_execute(client, s_protocol_event(self->message));
+            //  Pass to client state machine
+            s_client_execute(client, s_protocol_event(self->message));
+        }
     }
     return 0;
 }

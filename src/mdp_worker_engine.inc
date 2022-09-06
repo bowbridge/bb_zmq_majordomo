@@ -476,7 +476,8 @@ s_client_execute(s_client_t *self, event_t event) {
                         if (mdp_worker_verbose) {
                             zsys_debug("mdp_worker:            $ check timeouts for %p", self);
                         }
-                        if (check_timeouts(&self->client)) {
+                        int _timeouts = check_timeouts(&self->client);
+                        if (-1 == _timeouts) {
                             zsys_debug("Broker heartbeats expired for worker %p", self);
                             zsock_disconnect(self->dealer, "%s", self->args.endpoint);
                             reset_timeouts(&self->client);

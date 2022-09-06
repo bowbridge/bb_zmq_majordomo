@@ -239,26 +239,6 @@ client_terminate(client_t *self) {
 
 
 //  ---------------------------------------------------------------------------
-//  Selftest
-
-void
-mdp_worker_test(bool verbose) {
-    printf(" * mdp_worker: ");
-    if (verbose) {
-        printf("\n");
-    }
-    //  @selftest
-    zactor_t *client = zactor_new(mdp_worker, NULL);
-    if (verbose) {
-        zstr_send(client, "VERBOSE");
-    }
-    zactor_destroy(&client);
-    //  @end
-    printf("OK\n");
-}
-
-
-//  ---------------------------------------------------------------------------
 //  connect_to_server
 //
 
@@ -437,6 +417,7 @@ prepare_final_response(client_t *self) {
 
 static void
 handle_set_wakeup(client_t *self) {
+    // sending in 10% shorter intervals than we're checking
     engine_set_wakeup_event(self, HEARTBEAT_DELAY, send_heartbeat_event);
 }
 
@@ -475,5 +456,5 @@ check_timeouts(client_t *self) {
         engine_set_exception(self, constructor_event);
         return -1;
     }
-    return 0;
+    return (int) self->timeouts;
 }
