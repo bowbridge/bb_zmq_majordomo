@@ -28,7 +28,9 @@ int main() {
     fprintf(stdout, "************************ Broker is running. Press a key to stop it\r\n");
     getchar();
 
+   
     printf("************************ Destroying broker\r\n");
     zactor_destroy(&broker);
-
+    sleep(1);
+    fprintf(stdout, "************************ Exiting\r\n");
 }

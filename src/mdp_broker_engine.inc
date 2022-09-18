@@ -645,9 +645,16 @@ s_server_new(zsock_t *pipe) {
 
 static void
 s_server_destroy(s_server_t **self_p) {
-    assert (self_p);
-    if (*self_p) {
+    if (self_p && *self_p) {
         s_server_t *self = *self_p;
+        // **********************************************
+        //    HACK!!  HACK!!  HACK!
+        // **********************************************
+        zsock_destroy (&self->router); // <= copied from below
+        return; // <= THIS IS A HACK !!!
+        // FIXME:  broker crashes when cleaning up, so I skipped that part as
+        // we are only calling this just before exiting the control process
+
         mdp_msg_destroy(&self->message);
         //  Destroy clients before destroying the server
         zhash_destroy(&self->clients);

@@ -159,24 +159,25 @@ s_worker_destroy(void *argument) {
 
 static void
 s_worker_delete(worker_t *self, int disconnect) {
-    assert(self);
-    if (disconnect) {
-        mdp_msg_t *msg = mdp_msg_new();
-        assert(msg);
-        mdp_msg_set_id(msg, MDP_MSG_DISCONNECT);
-        mdp_msg_set_routing_id(msg, self->address);
-        mdp_msg_send(msg, self->broker->router);
-    }
+    if (NULL != self) {
+        if (disconnect) {
+            mdp_msg_t *msg = mdp_msg_new();
+            assert(msg);
+            mdp_msg_set_id(msg, MDP_MSG_DISCONNECT);
+            mdp_msg_set_routing_id(msg, self->address);
+            mdp_msg_send(msg, self->broker->router);
+        }
 
-    if (self->service) {
-        // zsys_debug("Deleting worker %s from service list", self->identity);
-        zlist_remove(self->service->waiting, self);
-        self->service->workers--;
+        if (self->service) {
+            // zsys_debug("Deleting worker %s from service list", self->identity);
+            zlist_remove(self->service->waiting, self);
+            self->service->workers--;
+        }
+        // zsys_debug("Deleting worker %s from broker's waiting list", self->identity);
+        zlist_remove(self->broker->waiting, self);
+        // This implicitly calls s_worker_destroy.
+        zhash_delete(self->broker->workers, self->identity);
     }
-    // zsys_debug("Deleting worker %s from broker's waiting list", self->identity);
-    zlist_remove(self->broker->waiting, self);
-    // This implicitly calls s_worker_destroy.
-    zhash_delete(self->broker->workers, self->identity);
 }
 
 static service_t *s_service_require(server_t *self, const char *service_name);
@@ -240,9 +241,12 @@ s_service_dispatch(service_t *self) {
 static void
 s_service_destroy(void *argument) {
     service_t *service = (service_t *) argument;
-    while (zlist_size(service->requests) > 0) {
-        zmsg_t *msg = (zmsg_t *) zlist_pop(service->requests);
-        zmsg_destroy(&msg);
+    zmsg_t *msg = NULL;
+    while (NULL != (msg = (zmsg_t *) zlist_pop(service->requests))) {
+        /* // zmsg_t *msg = (zmsg_t *) zlist_pop(service->requests);
+        // if (msg) */
+        if (zmsg_size(msg) && zmsg_content_size(msg))
+            zmsg_destroy(&msg);
     }
     zlist_destroy(&service->requests);
     zlist_destroy(&service->waiting);
@@ -787,7 +791,7 @@ handle_ready(client_t *self) {
     zframe_t *routing_id = mdp_msg_routing_id(msg);
     if (routing_id) {
         char *identity = zframe_strhex(routing_id);
-        zsys_debug("handle_ready: worker %s reports READY for service=\"%s\"", identity, service_name);
+        // zsys_debug("handle_ready: worker %s reports READY for service=\"%s\"", identity, service_name);
 
         int worker_ready = (zhash_lookup(self->server->workers, identity) != NULL);
         free(identity);
