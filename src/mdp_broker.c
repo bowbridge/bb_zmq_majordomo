@@ -172,6 +172,9 @@ s_worker_delete(worker_t *self, int disconnect) {
         // zsys_debug("Deleting worker %s from service list", self->identity);
         zlist_remove(self->service->waiting, self);
         self->service->workers--;
+        if (self->service->workers == 0) {
+            s_service_destroy(self->service);
+        }
     }
     // zsys_debug("Deleting worker %s from broker's waiting list", self->identity);
     zlist_remove(self->broker->waiting, self);
