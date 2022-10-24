@@ -390,7 +390,7 @@ handle_mmi(client_t *self, const char *service_name) {
                                                   service->workers,
                                                   zlist_size(service->waiting), zlist_size(service->requests));
                         } else {
-                            result = zsys_sprintf("");
+                            result = zsys_sprintf("%s", oldresult);
                         }
                     } else if (streq(svc, "jsonx")) {
                         result = zsys_sprintf(
@@ -406,7 +406,7 @@ handle_mmi(client_t *self, const char *service_name) {
                                     service->workers,
                                     zlist_size(service->waiting), zlist_size(service->requests));
                         } else {
-                            result = zsys_sprintf("");
+                            result = zsys_sprintf("%s", oldresult);
                         }
                     } else if (streq(svc, "allx")) {
                         result = zsys_sprintf("%s%s: %d active, %d waiting, %d requests queued\n", oldresult,
@@ -420,7 +420,7 @@ handle_mmi(client_t *self, const char *service_name) {
                                                   service->workers,
                                                   zlist_size(service->waiting), zlist_size(service->requests));
                         } else {
-                            result = zsys_sprintf("");
+                            result = zsys_sprintf("%s", oldresult);
                         }
                     }
                     zstr_free(&oldresult);
