@@ -385,7 +385,7 @@ handle_mmi(client_t *self, const char *service_name) {
                                               service->workers,
                                               zlist_size(service->waiting), zlist_size(service->requests));
                     } else if (streq(svc, "raw")) {
-                        if ((char) *service->name != '.') {
+                        if (strncmp(service->name, ".", 1) == 0) {
                             result = zsys_sprintf("%s%s;%d;%d;%d\n", oldresult, service->name,
                                                   service->workers,
                                                   zlist_size(service->waiting), zlist_size(service->requests));
@@ -397,7 +397,7 @@ handle_mmi(client_t *self, const char *service_name) {
                                 service->workers,
                                 zlist_size(service->waiting), zlist_size(service->requests));
                     } else if (streq(svc, "json")) {
-                        if ((char) *service->name != '.') {
+                        if (strncmp(service->name, ".", 1) == 0) {
                             result = zsys_sprintf(
                                     "%s \"%s\":{\"workers\":\"%d\", \"waiting\":\"%d\", \"requests-queued\":\"%d\"}",
                                     oldresult, service->name,
@@ -410,7 +410,7 @@ handle_mmi(client_t *self, const char *service_name) {
                                               service->workers,
                                               zlist_size(service->waiting), zlist_size(service->requests));
                     } else {
-                        if ((char) *service->name != '.') {
+                        if (strncmp(service->name, ".", 1) == 0) {
                             result = zsys_sprintf("%s%s: %d active, %d waiting, %d requests queued\n", oldresult,
                                                   service->name,
                                                   service->workers,
