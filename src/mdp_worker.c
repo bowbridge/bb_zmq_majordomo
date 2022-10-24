@@ -54,10 +54,10 @@ typedef struct {
 
 // Maximum number of timeouts; If this number is reached, we stop sending
 // heartbeats and terminate connection.
-#define MAX_TIMEOUTS 3
+#define MAX_TIMEOUTS 5
 
 // Interval for sending heartbeat [ms]
-#define HEARTBEAT_DELAY 3000
+#define HEARTBEAT_DELAY 1500
 
 static int s_worker_encrypt_body_frames(zmsg_t *body, unsigned char *key) {
     if (NULL != body && NULL != key) {
@@ -235,26 +235,6 @@ static void
 client_terminate(client_t *self) {
     //  Destroy properties here
     free(self->service);
-}
-
-
-//  ---------------------------------------------------------------------------
-//  Selftest
-
-void
-mdp_worker_test(bool verbose) {
-    printf(" * mdp_worker: ");
-    if (verbose) {
-        printf("\n");
-    }
-    //  @selftest
-    zactor_t *client = zactor_new(mdp_worker, NULL);
-    if (verbose) {
-        zstr_send(client, "VERBOSE");
-    }
-    zactor_destroy(&client);
-    //  @end
-    printf("OK\n");
 }
 
 
@@ -437,6 +417,7 @@ prepare_final_response(client_t *self) {
 
 static void
 handle_set_wakeup(client_t *self) {
+    // sending in 10% shorter intervals than we're checking
     engine_set_wakeup_event(self, HEARTBEAT_DELAY, send_heartbeat_event);
 }
 
@@ -475,5 +456,5 @@ check_timeouts(client_t *self) {
         engine_set_exception(self, constructor_event);
         return -1;
     }
-    return 0;
+    return (int) self->timeouts;
 }
