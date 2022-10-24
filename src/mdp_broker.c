@@ -370,7 +370,8 @@ handle_mmi(client_t *self, const char *service_name) {
 
         if (strstr(service_name, "mmi.status")) {
             char *svc = zmsg_popstr(mmibody);
-            if (streq(svc, "all") || streq(svc, "raw") || streq(svc, "json")) {
+            if (streq(svc, "all") || streq(svc, "raw") || streq(svc, "json") || streq(svc, "allx") ||
+                streq(svc, "rawx") || streq(svc, "jsonx")) {
                 service_t *service = (service_t *) zhash_first(self->server->services);
                 char *oldresult = NULL;
                 if (streq(svc, "json")) {
@@ -379,21 +380,42 @@ handle_mmi(client_t *self, const char *service_name) {
                     oldresult = zsys_sprintf("");
                 }
                 while (service) {
-                    if (streq(svc, "raw")) {
+                    if (streq(svc, "rawx")) {
                         result = zsys_sprintf("%s%s;%d;%d;%d\n", oldresult, service->name,
                                               service->workers,
                                               zlist_size(service->waiting), zlist_size(service->requests));
-                    } else if (streq(svc, "json")) {
+                    } else if (streq(svc, "raw")) {
+                        if (service->name[0] != '.') {
+                            result = zsys_sprintf("%s%s;%d;%d;%d\n", oldresult, service->name,
+                                                  service->workers,
+                                                  zlist_size(service->waiting), zlist_size(service->requests));
+                        }
+                    } else if (streq(svc, "jsonx")) {
                         result = zsys_sprintf(
                                 "%s \"%s\":{\"workers\":\"%d\", \"waiting\":\"%d\", \"requests-queued\":\"%d\"}",
                                 oldresult, service->name,
                                 service->workers,
                                 zlist_size(service->waiting), zlist_size(service->requests));
-                    } else {
+                    } else if (streq(svc, "json")) {
+                        if (service->name[0] != '.') {
+                            result = zsys_sprintf(
+                                    "%s \"%s\":{\"workers\":\"%d\", \"waiting\":\"%d\", \"requests-queued\":\"%d\"}",
+                                    oldresult, service->name,
+                                    service->workers,
+                                    zlist_size(service->waiting), zlist_size(service->requests));
+                        }
+                    } else if (streq(svc, "allx")) {
                         result = zsys_sprintf("%s%s: %d active, %d waiting, %d requests queued\n", oldresult,
                                               service->name,
                                               service->workers,
                                               zlist_size(service->waiting), zlist_size(service->requests));
+                    } else {
+                        if (service->name[0] != '.') {
+                            result = zsys_sprintf("%s%s: %d active, %d waiting, %d requests queued\n", oldresult,
+                                                  service->name,
+                                                  service->workers,
+                                                  zlist_size(service->waiting), zlist_size(service->requests));
+                        }
                     }
                     zstr_free(&oldresult);
                     oldresult = result;
