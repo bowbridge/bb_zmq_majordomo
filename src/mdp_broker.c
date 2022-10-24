@@ -159,24 +159,30 @@ s_worker_destroy(void *argument) {
 
 static void
 s_worker_delete(worker_t *self, int disconnect) {
-    assert(self);
-    if (disconnect) {
-        mdp_msg_t *msg = mdp_msg_new();
-        assert(msg);
-        mdp_msg_set_id(msg, MDP_MSG_DISCONNECT);
-        mdp_msg_set_routing_id(msg, self->address);
-        mdp_msg_send(msg, self->broker->router);
-    }
+    if (self) {
+        if (disconnect) {
+            mdp_msg_t *msg = mdp_msg_new();
+            assert(msg);
+            mdp_msg_set_id(msg, MDP_MSG_DISCONNECT);
+            mdp_msg_set_routing_id(msg, self->address);
+            mdp_msg_send(msg, self->broker->router);
+        }
 
-    if (self->service) {
-        // zsys_debug("Deleting worker %s from service list", self->identity);
-        zlist_remove(self->service->waiting, self);
-        self->service->workers--;
+        if (self->service) {
+            // zsys_debug("Deleting worker %s from service list", self->identity);
+            zlist_remove(self->service->waiting, self);
+            self->service->workers--;
+            // delete the service if this was the last/only worker
+            if (self->service->workers == 0) {
+                s_service_destroy(self->service);
+            }
+        }
+        // zsys_debug("Deleting worker %s from broker's waiting list", self->identity);
+        zlist_remove(self->broker->waiting, self);
+        // This implicitly calls s_worker_destroy.
+        zhash_delete(self->broker->workers, self->identity);
+
     }
-    // zsys_debug("Deleting worker %s from broker's waiting list", self->identity);
-    zlist_remove(self->broker->waiting, self);
-    // This implicitly calls s_worker_destroy.
-    zhash_delete(self->broker->workers, self->identity);
 }
 
 static service_t *s_service_require(server_t *self, const char *service_name);
