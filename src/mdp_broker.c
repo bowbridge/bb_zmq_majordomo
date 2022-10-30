@@ -715,21 +715,24 @@ handle_request(client_t *self) {
 
         if (strstr(service_name, "mmi.")) {
             handle_mmi(self, service_name);
-            return;
+        } else {
+            service_t *service = s_service_require(self->server, service_name);
+            if (service->workers > 0) { // we only handle requests for which we have workers
+                // Create a fresh instance of mdp_msg_t to append to the list of requests.
+                mdp_msg_t *msg = mdp_msg_new();
+                // routing id, messageid, service, body
+                mdp_msg_set_routing_id(msg, mdp_msg_routing_id(self->message));
+                mdp_msg_set_id(msg, mdp_msg_id(self->message));
+                mdp_msg_set_service(msg, service_name);
+                zmsg_t *body = mdp_msg_get_body(self->message);
+                mdp_msg_set_body(msg, &body);
+                zlist_append(service->requests, msg);
+                s_service_dispatch(service);
+            } else {
+                zsys_debug("Client requested unknown service %s", service_name);
+                s_service_destroy(service);
+            }
         }
-
-        // Create a fresh instance of mdp_msg_t to append to the list of requests.
-        mdp_msg_t *msg = mdp_msg_new();
-
-        // routing id, messageid, service, body
-        mdp_msg_set_routing_id(msg, mdp_msg_routing_id(self->message));
-        mdp_msg_set_id(msg, mdp_msg_id(self->message));
-        mdp_msg_set_service(msg, service_name);
-        zmsg_t *body = mdp_msg_get_body(self->message);
-        mdp_msg_set_body(msg, &body);
-        service_t *service = s_service_require(self->server, service_name);
-        zlist_append(service->requests, msg);
-        s_service_dispatch(service);
     } else {
         zsys_error("Malformed request");
     }
