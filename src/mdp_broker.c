@@ -203,28 +203,24 @@ s_service_require(server_t *self, const char *service_name) {
 
 static void
 s_service_dispatch(service_t *self) {
-    if (self->workers == 0) {
-        s_service_destroy(self);
-    } else {
-        while ((zlist_size(self->requests) > 0) &&
-               (zlist_size(self->waiting) > 0)) {
-            worker_t *worker = (worker_t *) zlist_pop(self->waiting);
-            zlist_remove(self->broker->waiting, worker);
-            mdp_msg_t *msg = (mdp_msg_t *) zlist_pop(self->requests);
-            mdp_msg_t *worker_msg = mdp_msg_new();
-            mdp_msg_set_id(worker_msg, MDP_MSG_WORKER_REQUEST);
-            mdp_msg_set_routing_id(worker_msg, worker->address);
-            zframe_t *address = zframe_dup(mdp_msg_routing_id(msg));
-            mdp_msg_set_address(worker_msg, &address);
-            zmsg_t *body = mdp_msg_get_body(msg);
-            // encrypt before sending to the worker
-            s_broker_encrypt_body_frames(body, worker->session_key_tx);
-            mdp_msg_set_body(worker_msg, &body);
-            // zsys_debug("BROKER: Dispatching request to worker %s", worker->identity);
-            mdp_msg_send(worker_msg, self->broker->router);
-            mdp_msg_destroy(&worker_msg);
-            mdp_msg_destroy(&msg);
-        }
+    while ((zlist_size(self->requests) > 0) &&
+           (zlist_size(self->waiting) > 0)) {
+        worker_t *worker = (worker_t *) zlist_pop(self->waiting);
+        zlist_remove(self->broker->waiting, worker);
+        mdp_msg_t *msg = (mdp_msg_t *) zlist_pop(self->requests);
+        mdp_msg_t *worker_msg = mdp_msg_new();
+        mdp_msg_set_id(worker_msg, MDP_MSG_WORKER_REQUEST);
+        mdp_msg_set_routing_id(worker_msg, worker->address);
+        zframe_t *address = zframe_dup(mdp_msg_routing_id(msg));
+        mdp_msg_set_address(worker_msg, &address);
+        zmsg_t *body = mdp_msg_get_body(msg);
+        // encrypt before sending to the worker
+        s_broker_encrypt_body_frames(body, worker->session_key_tx);
+        mdp_msg_set_body(worker_msg, &body);
+        // zsys_debug("BROKER: Dispatching request to worker %s", worker->identity);
+        mdp_msg_send(worker_msg, self->broker->router);
+        mdp_msg_destroy(&worker_msg);
+        mdp_msg_destroy(&msg);
     }
 }
 
@@ -716,8 +712,9 @@ handle_request(client_t *self) {
         if (strstr(service_name, "mmi.")) {
             handle_mmi(self, service_name);
         } else {
-            service_t *service = s_service_require(self->server, service_name);
-            if (service->workers > 0) { // we only handle requests for which we have workers
+            //Check if we know the service requested
+            if (zhash_lookup(self->server->services, service_name)) {
+                service_t *service = s_service_require(self->server, service_name);
                 // Create a fresh instance of mdp_msg_t to append to the list of requests.
                 mdp_msg_t *msg = mdp_msg_new();
                 // routing id, messageid, service, body
@@ -730,7 +727,6 @@ handle_request(client_t *self) {
                 s_service_dispatch(service);
             } else {
                 zsys_debug("Client requested unknown service %s", service_name);
-                s_service_destroy(service);
             }
         }
     } else {
