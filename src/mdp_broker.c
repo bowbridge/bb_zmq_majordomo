@@ -726,6 +726,7 @@ handle_request(client_t *self) {
                 s_service_dispatch(service);
             } else {
                 zsys_debug("Client requested unknown service %s", service_name);
+                s_service_destroy(service);
             }
         }
     } else {
